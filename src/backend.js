@@ -95,7 +95,18 @@ const AUTH_ERR = {
   'auth/requires-recent-login': 'Por segurança, saia e entre de novo antes de excluir a conta.', 'auth/operation-not-supported-in-this-environment': 'Login com Google indisponível neste ambiente.',
   'auth/unauthorized-domain': 'Este domínio não está autorizado no Firebase (Authentication › Configurações › Domínios autorizados).', 'permission-denied': 'Sem permissão para esta ação.',
 };
-const errMsg = e => AUTH_ERR[e && e.code] || (e && e.message) || 'Algo deu errado. Tente novamente.';
+const DB_ERR = {
+  'failed-precondition': 'Estamos preparando esta parte do app. Tente de novo em alguns minutos.',
+  'permission-denied': 'Você não tem permissão para ver ou alterar isso.',
+  'unavailable': 'Sem conexão no momento. Verifique a internet e tente de novo.',
+  'deadline-exceeded': 'A conexão está lenta. Tente de novo.',
+  'resource-exhausted': 'Muitas solicitações agora. Aguarde um pouco e tente de novo.',
+  'unauthenticated': 'Sua sessão expirou. Entre de novo.',
+  'not-found': 'Não encontrado.',
+};
+const isIndexErr = e => !!(e && (e.code === 'failed-precondition' || /requires an index/i.test(e.message || '')));
+const errMsg = e => { if (e && !AUTH_ERR[e.code]) console.warn('[OraGym]', e.code || '', e.message || e);
+  return AUTH_ERR[e && e.code] || DB_ERR[e && e.code] || (isIndexErr(e) ? DB_ERR['failed-precondition'] : null) || (e && typeof e.message === 'string' && /[áéíóúâêôãõç]/i.test(e.message) && !/firebase|firestore|query|index/i.test(e.message) ? e.message : 'Algo deu errado. Tente novamente.'); };
 
 /* ---------------- API do app ---------------- */
 const API = (() => {

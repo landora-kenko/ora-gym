@@ -93,7 +93,8 @@ Screens.social = {
         L.forEach((p, i) => { const d = document.createElement('div'); d.innerHTML = postCard(p); list.appendChild(d.firstElementChild); });
         if (L.length) { last = L[L.length - 1].ts; if (L.length >= 20) list.insertAdjacentHTML('beforeend', `<button class="btn btn-ghost btn-block feed-more">Carregar mais</button>`); }
         hydrateImages(list); Motion.drawLines(list);
-      } catch (x) { list.innerHTML = emptyBox(errMsg(x)); } loading = false; };
+      } catch (x) { if (isIndexErr(x) && !more) { list.innerHTML = `<div class="card" style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto 14px"></div><div class="h3">Preparando o feed</div><div class="muted small" style="margin-top:6px">Isso acontece só logo depois de uma atualização. Já tentamos de novo sozinhos.</div></div>`; clearTimeout(el._rt); el._rt = setTimeout(() => el.isConnected && load(), 20000); }
+        else list.innerHTML = emptyBox(errMsg(x)); } loading = false; };
     mountSeg($('.seg', el), b => { socialScope = b.dataset.scope; load(); });
     el.addEventListener('click', e => {
       const f = e.target.closest('[data-feedf]'); if (f) { socialFilter = f.dataset.feedf; haptic(6); $$('[data-feedf]', el).forEach(b => b.classList.toggle('on', b === f)); load(); }

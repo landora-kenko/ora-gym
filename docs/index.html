@@ -1438,7 +1438,18 @@ const AUTH_ERR = {
   'auth/requires-recent-login': 'Por segurança, saia e entre de novo antes de excluir a conta.', 'auth/operation-not-supported-in-this-environment': 'Login com Google indisponível neste ambiente.',
   'auth/unauthorized-domain': 'Este domínio não está autorizado no Firebase (Authentication › Configurações › Domínios autorizados).', 'permission-denied': 'Sem permissão para esta ação.',
 };
-const errMsg = e => AUTH_ERR[e && e.code] || (e && e.message) || 'Algo deu errado. Tente novamente.';
+const DB_ERR = {
+  'failed-precondition': 'Estamos preparando esta parte do app. Tente de novo em alguns minutos.',
+  'permission-denied': 'Você não tem permissão para ver ou alterar isso.',
+  'unavailable': 'Sem conexão no momento. Verifique a internet e tente de novo.',
+  'deadline-exceeded': 'A conexão está lenta. Tente de novo.',
+  'resource-exhausted': 'Muitas solicitações agora. Aguarde um pouco e tente de novo.',
+  'unauthenticated': 'Sua sessão expirou. Entre de novo.',
+  'not-found': 'Não encontrado.',
+};
+const isIndexErr = e => !!(e && (e.code === 'failed-precondition' || /requires an index/i.test(e.message || '')));
+const errMsg = e => { if (e && !AUTH_ERR[e.code]) console.warn('[OraGym]', e.code || '', e.message || e);
+  return AUTH_ERR[e && e.code] || DB_ERR[e && e.code] || (isIndexErr(e) ? DB_ERR['failed-precondition'] : null) || (e && typeof e.message === 'string' && /[áéíóúâêôãõç]/i.test(e.message) && !/firebase|firestore|query|index/i.test(e.message) ? e.message : 'Algo deu errado. Tente novamente.'); };
 
 /* ---------------- API do app ---------------- */
 const API = (() => {
@@ -2554,7 +2565,8 @@ Screens.social = {
         L.forEach((p, i) => { const d = document.createElement('div'); d.innerHTML = postCard(p); list.appendChild(d.firstElementChild); });
         if (L.length) { last = L[L.length - 1].ts; if (L.length >= 20) list.insertAdjacentHTML('beforeend', `<button class="btn btn-ghost btn-block feed-more">Carregar mais</button>`); }
         hydrateImages(list); Motion.drawLines(list);
-      } catch (x) { list.innerHTML = emptyBox(errMsg(x)); } loading = false; };
+      } catch (x) { if (isIndexErr(x) && !more) { list.innerHTML = `<div class="card" style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto 14px"></div><div class="h3">Preparando o feed</div><div class="muted small" style="margin-top:6px">Isso acontece só logo depois de uma atualização. Já tentamos de novo sozinhos.</div></div>`; clearTimeout(el._rt); el._rt = setTimeout(() => el.isConnected && load(), 20000); }
+        else list.innerHTML = emptyBox(errMsg(x)); } loading = false; };
     mountSeg($('.seg', el), b => { socialScope = b.dataset.scope; load(); });
     el.addEventListener('click', e => {
       const f = e.target.closest('[data-feedf]'); if (f) { socialFilter = f.dataset.feedf; haptic(6); $$('[data-feedf]', el).forEach(b => b.classList.toggle('on', b === f)); load(); }
