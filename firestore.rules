@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function isMe(u) { return signed() && request.auth.uid == u; }
+    function onlyChanged(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function step(f) { return (request.resource.data[f] - resource.data.get(f, 0)) in [-1, 1]; }
+
+    match /handles/{h} {
+      allow read: if signed();
+      allow create: if signed() && request.resource.data.uid == request.auth.uid;
+      allow delete: if signed() && resource.data.uid == request.auth.uid;
+    }
+
+    match /users/{u} {
+      allow read: if signed();
+      allow create: if isMe(u);
+      allow update: if isMe(u) || (signed() && onlyChanged(['followersCount']) && step('followersCount'));
+      allow delete: if isMe(u);
+
+      match /activities/{a} {
+        allow read: if isMe(u) || (signed() && get(/databases/$(database)/documents/users/$(u)).data.private == false);
+        allow write: if isMe(u);
+      }
+      match /workouts/{w} { allow read, write: if isMe(u); }
+      match /days/{d} { allow read, write: if isMe(u); }
+      match /joined/{c} { allow read: if signed(); allow write: if isMe(u); }
+      match /following/{x} { allow read: if signed(); allow write: if isMe(u); }
+      match /followers/{x} { allow read: if signed(); allow create, delete: if signed() && request.auth.uid == x; }
+      match /notifications/{n} {
+        allow read, update, delete: if isMe(u);
+        allow create: if signed() && request.resource.data.from == request.auth.uid;
+      }
+    }
+
+    match /posts/{p} {
+      allow read: if signed() && (resource.data.visibility == 'public' || resource.data.authorId == request.auth.uid);
+      allow create: if signed() && request.resource.data.authorId == request.auth.uid && request.resource.data.likeCount == 0 && request.resource.data.commentCount == 0;
+      allow update: if signed() && (
+        (resource.data.authorId == request.auth.uid && onlyChanged(['text', 'likeCount', 'commentCount', 'author', 'visibility'])) ||
+        (onlyChanged(['likeCount']) && step('likeCount')) ||
+        (onlyChanged(['commentCount']) && step('commentCount')));
+      allow delete: if signed() && resource.data.authorId == request.auth.uid;
+
+      match /likes/{x} { allow read: if signed(); allow create, delete: if signed() && request.auth.uid == x; }
+      match /comments/{c} {
+        allow read: if signed();
+        allow create: if signed() && request.resource.data.uid == request.auth.uid && request.resource.data.text.size() <= 600;
+        allow delete: if signed() && resource.data.uid == request.auth.uid;
+      }
+    }
+
+    match /images/{i} {
+      allow read: if signed();
+      allow create: if signed() && request.resource.data.owner == request.auth.uid && request.resource.data.data.size() < 1000000;
+      allow delete: if signed() && resource.data.owner == request.auth.uid;
+    }
+
+    match /challenges/{c} {
+      allow read: if signed();
+      allow create: if signed() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if signed() && (resource.data.ownerId == request.auth.uid || (onlyChanged(['memberCount']) && step('memberCount')));
+      allow delete: if signed() && resource.data.ownerId == request.auth.uid;
+      match /members/{x} { allow read: if signed(); allow write: if signed() && request.auth.uid == x; }
+    }
+  }
+}

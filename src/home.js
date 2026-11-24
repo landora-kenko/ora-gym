@@ -1,299 +1,300 @@
 /* ============================================================
-   ORA GYM — Home ("Seus espaços") + espaços por esporte
+   ORA GYM — Home ("Seus espaços") + espaço de cada esporte (dados reais)
    ============================================================ */
 const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
-const firstName = () => (Store.get().name || 'Atleta').split(' ')[0];
-const mySports = () => { const s = Store.get().sports; return [...s, ...SPORT_IDS.filter(x => !s.includes(x))]; };
-const nextSession = id => ({
-  musculacao: ['Treino A — Peito & Tríceps', '5 exercícios · ~58 min', 'liftLive'], corrida: ['Corrida leve · 6 km', 'Zona 2 · pace alvo 5\'40"', 'runLive'],
-  ciclismo: ['Pedal de base · 40 km', 'Cadência 85–90 rpm', 'runLive'], calistenia: ['Progressão de muscle-up', '6 blocos · ~40 min', 'genericLive'],
-  futebol: ['Pelada de quinta', 'Quadra · 20h', 'genericLive'], natacao: ['Série técnica 1.500 m', 'Livre e costas', 'genericLive'], boxe: ['8 rounds de saco', '3 min · 1 min descanso', 'genericLive'],
-}[id]);
+const firstName = () => ((API.me && API.me.name) || 'Atleta').split(' ')[0];
+const mySports = () => (API.me && API.me.sports && API.me.sports.length) ? API.me.sports : ['musculacao'];
+const SS = id => Stats.sport(API.acts, id, API.me);
+const nv = (v, d = 0) => fmt(v, v % 1 ? d : 0);
+const LIVE = { musculacao: 'liftLive', corrida: 'runLive', ciclismo: 'runLive', calistenia: 'genericLive', futebol: 'genericLive', natacao: 'genericLive', boxe: 'genericLive' };
+const startLabel = { musculacao: 'Começar treino', corrida: 'Iniciar corrida', ciclismo: 'Começar pedal', calistenia: 'Começar sessão', futebol: 'Registrar partida', natacao: 'Iniciar série', boxe: 'Iniciar rounds' };
+function nextWorkout() { const W = API.workouts; if (!W.length) return null; const last = API.acts.find(a => a.sport === 'musculacao' && a.workoutId); if (!last) return W[0]; const i = W.findIndex(w => w.id === last.workoutId); return W[(i + 1) % W.length] || W[0]; }
+function todayLine() { const id = mySports()[0]; if (id === 'musculacao') { const w = nextWorkout(); return w ? `${w.name}${w.focus ? ' — ' + w.focus : ''}` : 'Monte sua primeira ficha'; } const S = SS(id); return `${SPORTS[id].name}: ${nv(S.goal.value, 1)} de ${nv(S.goal.target, 1)} ${S.goal.unit} na semana`; }
+const emptyBox = (txt, btn = '') => `<div class="card" style="text-align:center;padding:26px 18px"><div class="muted small" style="line-height:1.55">${txt}</div>${btn ? `<div style="margin-top:14px">${btn}</div>` : ''}</div>`;
 
 /* ---------------- Home ---------------- */
 Screens.home = {
   render() {
-    const s = Store.get(); const mine = s.sports;
-    const chs = CHALLENGES.filter(c => s.challengesJoined.includes(c.id)).concat(s.customChallenges || []);
-    return `<div class="scroll" id="home-scroll"><div class="pad" style="padding-top:calc(var(--safe-top) + 6px)">
-      <div class="between" data-e="0" data-ek="fade">${brandLockup(22)}<div class="row" style="gap:8px"><button class="icon-btn glass" aria-label="Notificações" id="home-bell" style="position:relative">${icon('bell', 20)}<span style="position:absolute;top:11px;right:12px;width:8px;height:8px;border-radius:50%;background:#E3192B;box-shadow:0 0 0 2px #1A1A1A"></span></button>${Photos.url('avatar') ? `<img src="${Photos.url('avatar')}" alt="" class="av" style="width:46px;height:46px;object-fit:cover">` : meAv()}</div></div>
+    const me = API.me; const mine = mySports();
+    return `<div class="scroll" id="home-scroll"><div class="pad page" style="padding-top:calc(var(--safe-top) + 6px)">
+      <div class="between m-only" data-e="0" data-ek="fade">${brandLockup(22)}<div class="row" style="gap:8px"><button class="icon-btn glass" aria-label="Notificações" data-notifs style="position:relative">${icon('bell', 20)}<span class="notif-dot" hidden></span></button><button data-gotab="profile" aria-label="Perfil">${meAv()}</button></div></div>
       <div class="kicker" style="margin-top:26px" data-e="1">${greet()}</div>
       <h1 class="display home-title" style="font-size:40px;margin:8px 0 6px">${esc(firstName())}, bora pra cima?</h1>
-      <p class="muted" style="margin:0" data-e="3">Hoje: <b style="color:#fff">${nextSession(mine[0])[0]}</b></p>
-      <div class="wsec" data-e="4"><h2>Seus espaços</h2><button class="link" id="home-edit">Editar</button></div></div>
-      <div class="hscroll" style="padding:0 20px 8px;margin:0;gap:14px" data-e="5">${mine.map(id => spaceCard(id)).join('')}
-        <button class="space-add press" id="home-add">${icon('plus', 26, 2)}<span class="small" style="text-align:center">Adicionar<br>esporte</span></button></div>
-      <div class="pad">
-      <div class="wsec" data-e="6"><h2>Sua semana</h2><span class="muted small">${mine.length} ${mine.length > 1 ? 'esportes' : 'esporte'}</span></div>
-      <div class="card" data-e="7"><div class="row" style="justify-content:space-around;flex-wrap:wrap;gap:14px">${mine.slice(0, 4).map((id, i) => { const sp = SPORTS[id]; return `<div style="text-align:center"><div style="position:relative">${ring(sp.goal.p, { size: 64, sw: 6, color: sp.c, delay: i * 120, inner: `<span style="color:${sp.c}">${icon(sp.icon, 20)}</span>` })}</div><div class="small" style="margin-top:8px;font-weight:600">${sp.short}</div><div class="muted" style="font-size:11px">${Math.round(sp.goal.p * 100)}% da meta</div></div>`; }).join('')}</div></div>
-      <div class="wsec" data-e="8"><h2>Desafios ativos</h2><button class="link" data-gotab="challenges">Ver todos</button></div>
-      <div class="hscroll" data-e="9">${chs.map(c => challengeCard(c, 'w')).join('')}</div>
-      <div class="wsec" data-e="10"><h2>Amigos em movimento</h2><button class="link" data-gotab="social">Feed</button></div>
-      <div class="stack" data-e="11">${FEED.slice(0, 3).map(p => `<div class="list-item"><img src="${photo(p.sport, 1, true)}" alt="" style="width:48px;height:48px;border-radius:14px;object-fit:cover;flex:none"><div style="flex:1;min-width:0"><div class="h3" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${PEOPLE[p.who].n.split(' ')[0]} · ${p.title}</div><div class="muted small" style="margin-top:3px">${p.stats.slice(0, 2).map(s => s[1]).join(' · ')} · ${p.t}</div></div>${av(p.who, 'sm')}</div>`).join('')}</div>
-      <div style="margin-top:22px;text-align:center">${demoBadge()}</div><div class="bottom-space"></div></div></div>`;
+      <p class="muted" style="margin:0" data-e="3">Hoje: <b style="color:#fff">${esc(todayLine())}</b></p>
+      <div class="wsec" data-e="4"><h2>Seus espaços</h2><button class="link" data-edit-sports>Editar</button></div></div>
+      <div class="hscroll spaces page-wide" style="padding:0 20px 8px;margin:0;gap:14px" data-e="5">${mine.map(id => spaceCard(id)).join('')}
+        <button class="space-add press" data-edit-sports>${icon('plus', 26, 2)}<span class="small" style="text-align:center">Adicionar<br>esporte</span></button></div>
+      <div class="pad page"><div class="home-grid">
+      <div><div class="wsec" data-e="6"><h2>Metas da semana</h2><span class="muted small">sequência de ${Stats.streak(API.acts)} ${Stats.streak(API.acts) === 1 ? 'dia' : 'dias'}</span></div>
+      <div class="card" data-e="7"><div class="row" style="justify-content:space-around;flex-wrap:wrap;gap:14px">${mine.slice(0, 4).map((id, i) => { const sp = SPORTS[id]; const S = SS(id); return `<button style="text-align:center" data-goal-edit="${id}" aria-label="Editar meta de ${sp.name}">${ring(S.goal.p, { size: 64, sw: 6, color: sp.c, delay: i * 120, inner: `<span style="color:${sp.c}">${icon(sp.icon, 20)}</span>` })}<div class="small" style="margin-top:8px;font-weight:600">${sp.short}</div><div class="muted" style="font-size:11px">${nv(S.goal.value, 1)}/${nv(S.goal.target, 1)} ${S.goal.unit}</div></button>`; }).join('')}</div></div>
+      <div class="wsec" data-e="8"><h2>Últimas atividades</h2><button class="link" data-gotab="train">Treinar</button></div>
+      <div data-e="9">${API.acts.length ? `<div class="stack">${API.acts.slice(0, 4).map(actRow).join('')}</div>` : emptyBox('Você ainda não registrou nenhuma atividade. Escolha um esporte e comece — tudo fica salvo na sua conta.', `<button class="btn btn-accent btn-sm" data-gotab="train">${icon('bolt', 16)}Registrar agora</button>`)}</div></div>
+      <div><div class="wsec" data-e="10"><h2>Seus desafios</h2><button class="link" data-gotab="challenges">Ver todos</button></div>
+      <div data-async="home-ch" data-e="11"><div class="card skeleton" style="height:120px"></div></div>
+      <div class="wsec" data-e="12"><h2>Quem você segue</h2><button class="link" data-gotab="social">Feed</button></div>
+      <div data-async="home-feed" data-e="13"><div class="card skeleton" style="height:90px"></div></div></div></div>
+      <div class="bottom-space"></div></div></div>`;
   },
   mount(el) {
-    Motion.kinetic($('.home-title', el), 200);
-    $('#home-bell', el).onclick = () => openNotifications();
-    el.addEventListener('click', e => { if (e.target.closest('#home-add') || e.target.closest('#home-edit')) editSportsSheet(); });
+    Motion.kinetic($('.home-title', el), 200); hydrateImages(el); wireActRows(el); refreshNotifDot();
+    el.addEventListener('click', e => { if (e.target.closest('[data-edit-sports]')) editSportsSheet(); const g = e.target.closest('[data-goal-edit]'); if (g) goalSheet(g.dataset.goalEdit, () => Nav.refresh()); if (e.target.closest('[data-notifs]')) openNotifications(); });
+    (async () => { const box = $('[data-async="home-ch"]', el); try { const L = await API.myChallenges(); box.innerHTML = L.length ? `<div class="hscroll">${L.slice(0, 6).map(c => challengeCard(c, 'w')).join('')}</div>` : emptyBox('Crie um desafio e chame seus amigos, ou entre em um desafio público.', `<button class="btn btn-ghost btn-sm" data-gotab="challenges">Explorar desafios</button>`); Motion.fillBars(box); } catch (x) { box.innerHTML = emptyBox(errMsg(x)); } })();
+    (async () => { const box = $('[data-async="home-feed"]', el); try { const L = API.following.size ? await API.feed({ scope: 'following' }) : []; const others = L.filter(p => p.authorId !== API.me.id).slice(0, 3);
+      box.innerHTML = others.length ? `<div class="stack">${others.map(p => `<button class="list-item press" style="text-align:left" data-open-post="${p.id}">${avatar(p.author)}<div style="flex:1;min-width:0"><div class="h3" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.author.name.split(' ')[0])} · ${esc(p.activity ? p.activity.title : (p.text || '').slice(0, 40))}</div><div class="muted small" style="margin-top:3px">${SPORTS[p.sport] ? SPORTS[p.sport].name : ''} · ${ago(p.ts)}</div></div><span style="color:${(SPORTS[p.sport] || {}).c}">${icon((SPORTS[p.sport] || {}).icon || 'bolt', 20)}</span></button>`).join('')}</div>`
+        : emptyBox('Siga atletas para ver as atividades deles aqui.', `<button class="btn btn-ghost btn-sm" data-find-people>Encontrar pessoas</button>`); hydrateImages(box);
+      box.addEventListener('click', e => { if (e.target.closest('[data-find-people]')) peopleSheet(); if (e.target.closest('[data-open-post]')) Nav.go('social'); }); } catch (x) { box.innerHTML = emptyBox(errMsg(x)); } })();
   },
   onReturn() { Nav.refresh(); },
 };
 function spaceCard(id) {
-  const sp = SPORTS[id]; const s0 = sp.stats[0];
+  const sp = SPORTS[id]; const S = SS(id);
   return `<button class="space-card press" data-push="world" data-params='{"id":"${id}"}' data-expand aria-label="Abrir espaço ${sp.name}">
     <img src="${photo(id, 0)}" alt="" style="object-position:${PHOTO_POS[PH[id][0]] || 'center'}"><span class="sc-fade"></span>
-    <span class="sc-top"><span class="tag" style="color:${sp.c};background:rgba(0,0,0,.5)">${icon(sp.icon, 13, 2)}${sp.short}</span><span class="tag">${Math.round(sp.goal.p * 100)}%</span></span>
-    <span class="sc-bot"><span class="display" style="display:block;font-size:30px">${sp.name}</span>
-      <span class="between" style="margin-top:10px"><span><span class="num" style="font-size:22px">${s0.fmt === 'pace' ? paceStr(s0.v) : fmt(s0.v, s0.d)}</span><span class="small" style="opacity:.75"> ${s0.u} · ${s0.k.toLowerCase()}</span></span><span class="go">${icon('arrow', 20, 2.2)}</span></span></span></button>`;
+    <span class="sc-top"><span class="tag" style="color:${sp.c};background:rgba(0,0,0,.5)">${icon(sp.icon, 13, 2)}${sp.short}</span><span class="tag">${Math.round(S.goal.p * 100)}% da meta</span></span>
+    <span class="sc-bot"><span class="display" style="display:block;font-size:26px">${sp.name}</span>
+      <span class="between" style="margin-top:10px"><span><span class="num" style="font-size:22px">${nv(S.weekTotal, S.metric.dec)}</span><span class="small" style="opacity:.75"> ${S.metric.u} na semana</span></span><span class="go">${icon('arrow', 20, 2.2)}</span></span></span></button>`;
 }
 function challengeCard(c, size = 'w') {
-  const sp = SPORTS[c.sport]; const p = clamp(c.mine / c.target, 0, 1); const pos = (c.rank || []).findIndex(r => r[0] === 'me') + 1;
-  return `<button class="card press" style="width:${size === 'w' ? '280px' : '100%'};text-align:left;padding:0;min-height:170px" data-push="challenge" data-params='{"id":"${c.id}"}' data-expand>
-    <img src="${photo(c.sport, 1, true)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55">
-    <span style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,11,11,.95) 30%,rgba(11,11,11,.5))"></span>
-    <div style="position:relative;padding:18px"><div class="between"><span class="tag" style="color:${sp.c}">${icon(sp.icon, 13, 2)}${sp.name}</span><span class="muted small">${c.days} dias</span></div>
-    <div class="h2" style="margin:14px 0 4px">${esc(c.name)}</div><div class="muted small">${esc(c.group || c.kind)}</div>
-    <div class="between" style="margin-top:14px;align-items:flex-end"><div class="num" style="font-size:24px">${fmt(c.mine, c.mine % 1 ? 1 : 0)}<span style="font-size:12px;color:var(--mute)"> / ${fmt(c.target)} ${c.unit}</span></div>${pos ? `<span class="tag neon">#${pos}</span>` : ''}</div>
+  const sp = SPORTS[c.sport] || SPORTS.musculacao; const mine = API.joined.includes(c.id); const prog = mine ? Stats.challengeProgress(API.acts, c) : 0; const p = clamp(prog / (c.target || 1), 0, 1);
+  const days = Math.max(0, Math.ceil((startOfDay(c.end) + DAY - Date.now()) / DAY));
+  return `<button class="card press ch-card" style="width:${size === 'w' ? '280px' : '100%'};text-align:left;padding:0;min-height:170px" data-push="challenge" data-params='{"id":"${c.id}"}'>
+    <img src="${photo(c.sport, 1, true)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.5"><span style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,11,11,.95) 30%,rgba(11,11,11,.5))"></span>
+    <div style="position:relative;padding:18px"><div class="between"><span class="tag" style="color:${sp.c}">${icon(sp.icon, 13, 2)}${sp.name}</span><span class="muted small">${days > 0 ? days + ' dias' : 'encerrado'}</span></div>
+    <div class="h2" style="margin:14px 0 4px">${esc(c.name)}</div><div class="muted small">${c.visibility === 'public' ? 'Público' : 'Privado'} · ${c.memberCount || 0} ${c.memberCount === 1 ? 'participante' : 'participantes'}</div>
+    <div class="between" style="margin-top:14px;align-items:flex-end"><div class="num" style="font-size:22px">${mine ? nv(prog, 1) : '—'}<span style="font-size:12px;color:var(--mute)"> / ${nv(c.target, 1)} ${esc(c.unit)}</span></div>${mine ? '<span class="tag neon">Participando</span>' : ''}</div>
     <div class="bar" style="margin-top:10px"><i data-bar="${p}" style="transform:scaleX(0);background:${sp.c};box-shadow:none"></i></div></div></button>`;
 }
+function actRow(a) { const sp = SPORTS[a.sport] || SPORTS.musculacao;
+  return `<button class="list-item press" style="text-align:left;--accent:${sp.c}" data-act="${a.id}"><span class="ico">${icon(sp.icon, 20)}</span><div style="flex:1;min-width:0"><div class="h3" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.title || sp.name)}</div><div class="muted small" style="margin-top:3px">${shortDate(a.startedAt)} · ${statLine(a.sport, a)}</div></div>${icon('next', 18)}</button>`; }
+function wireActRows(root) { root.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) activitySheet(API.acts.find(a => a.id === b.dataset.act)); }); }
+function activitySheet(a) {
+  if (!a) return; const sp = SPORTS[a.sport];
+  const sets = a.sets && a.sets.length ? `<div class="stack" style="gap:6px;margin-top:14px">${Object.entries(a.sets.reduce((m, s) => { (m[s.ex] = m[s.ex] || []).push(s); return m; }, {})).map(([ex, L]) => `<div class="list-item" style="padding:10px 14px;display:block"><div class="h3">${esc(ex)}</div><div class="muted small" style="margin-top:4px">${L.map(s => `${s.kg ? fmt(s.kg, s.kg % 1 ? 1 : 0) + ' kg × ' : ''}${s.reps}`).join(' · ')}</div></div>`).join('')}</div>` : '';
+  const blocks = a.blocks && a.blocks.length ? `<div class="muted small" style="margin-top:12px;line-height:1.6">${a.blocks.map(b => `${esc(b.ex)}: ${b.reps}`).join(' · ')}</div>` : '';
+  Sheet.open(`<div class="between" data-e="0"><div><div class="kicker" style="color:${sp.c}">${sp.name} · ${new Date(a.startedAt).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })}</div><h3 class="h2" style="margin-top:6px;font-size:22px">${esc(a.title || sp.name)}</h3></div></div>
+    ${a.route && a.route.length > 1 ? `<div style="height:200px;border-radius:22px;overflow:hidden;margin-top:14px" data-e="1">${routeSVG(a.route, { color: sp.c === '#E8ECE6' ? '#fff' : sp.c })}</div>` : ''}
+    <div class="grid3" style="margin-top:14px" data-e="2">${postStats(a).map(s => `<div class="card" style="padding:12px"><div class="muted" style="font-size:11px">${s[0]}</div><div class="num" style="font-size:18px;margin-top:4px">${esc(s[1])}</div></div>`).join('')}</div>
+    ${sets}${blocks}${a.notes ? `<p class="muted small" style="margin-top:12px">${esc(a.notes)}</p>` : ''}
+    <div class="row" style="gap:10px;margin-top:18px" data-e="3"><button class="btn btn-white" style="flex:1" data-ap>${icon('share', 18)}Publicar</button><button class="btn btn-ghost" data-ad style="color:#FF6B76">${icon('trash', 18)}</button></div>`,
+    (w, close) => { $('[data-ap]', w).onclick = () => { close(); composePost({ sport: a.sport, activity: a }); };
+      $('[data-ad]', w).onclick = async () => { close(); if (await confirmDialog('Excluir atividade?', 'Ela sai do seu histórico e das estatísticas. Não dá para desfazer.', 'Excluir', true)) { try { await API.removeActivity(a.id); toast('Atividade excluída', 'trash'); rerenderAll(); } catch (x) { toast(errMsg(x), 'x'); } } }; }, { label: 'Atividade' });
+}
+function goalSheet(id, done) {
+  const sp = SPORTS[id]; const S = SS(id); const g = { ...S.goal };
+  const kinds = { sessions: `${GOAL_DEFAULT[id].kind === 'sessions' ? GOAL_DEFAULT[id].unit : 'treinos'}`, metric: METRIC[id].u };
+  Sheet.open(`<h3 class="h2" data-e="0">Meta semanal · ${sp.name}</h3><p class="muted small" data-e="1" style="margin:6px 0 16px">Usada nos anéis, nos espaços e no seu progresso.</p>
+    <div class="field" data-e="2"><label>Medir por</label>${seg([['sessions', 'Quantidade de sessões'], ['metric', METRIC[id].k]], g.kind, 'gk')}</div>
+    <div class="field" data-e="3"><label>Objetivo por semana</label><div class="stepper"><button class="icon-btn" data-gs="-1" aria-label="Diminuir">${icon('minus', 18)}</button><div class="live-num" style="font-size:42px"><span id="g-t">${g.target}</span> <span class="g-u" style="font-size:15px;color:var(--mute)">${g.kind === 'sessions' ? kinds.sessions : kinds.metric}</span></div><button class="icon-btn" data-gs="1" aria-label="Aumentar">${icon('plus', 18)}</button></div></div>
+    <button class="btn btn-white btn-block" data-gsave data-e="4">Salvar meta</button>`, (w, close) => {
+      mountSeg($('.seg', w), b => { g.kind = b.dataset.gk; $('.g-u', w).textContent = g.kind === 'sessions' ? kinds.sessions : kinds.metric; });
+      w.addEventListener('click', async e => { const s = e.target.closest('[data-gs]'); if (s) { const step = g.kind === 'metric' && g.target >= 10 ? 5 : 1; g.target = Math.max(1, g.target + step * +s.dataset.gs); $('#g-t', w).textContent = g.target; haptic(5); }
+        if (e.target.closest('[data-gsave]')) { const weekly = { ...(API.me.weekly || {}) }; weekly[id] = { kind: g.kind, target: g.target, unit: g.kind === 'sessions' ? kinds.sessions : kinds.metric }; try { await API.updateProfile({ weekly }); close(); toast('Meta salva'); done && done(); } catch (x) { toast(errMsg(x), 'x'); } } }); }, { label: 'Meta' });
+}
 
-/* ---------------- World shell: switcher + per-sport design ---------------- */
-Screens.world = {
-  render({ id }) { return worldShell(id); },
-  mount(el, { id }) { mountWorld(el, id); },
-  onReturn(el, p) { },
-};
+/* ---------------- Espaço de cada esporte ---------------- */
+Screens.world = { render({ id }) { return worldShell(id); }, mount(el, { id }) { mountWorld(el, id); }, onReturn(el, p) { const w = $('.world', el); if (!w) return; const id = w.dataset.world; el.innerHTML = worldShell(id); mountWorld(el, id); } };
 Screens.sport = Screens.world;
-
 function worldShell(id) {
-  const sp = SPORTS[id]; setAccent(id); const mine = Store.get().sports.includes(id) ? Store.get().sports : [id, ...Store.get().sports];
-  const ns = nextSession(id);
+  const sp = SPORTS[id]; setAccent(id); const mine = mySports().includes(id) ? mySports() : [id, ...mySports()]; const S = SS(id);
   return `<div class="world w-${id}" data-world="${id}">
     <div class="wtop"><button class="icon-btn glass" data-back aria-label="Voltar">${icon('back', 20, 2)}</button>
       <div class="wswitch glass" role="tablist" aria-label="Seus espaços">${mine.map(s => `<button class="wsw ${s === id ? 'on' : ''}" role="tab" aria-selected="${s === id}" data-wsw="${s}"><img src="${photo(s, 0, true)}" alt=""><span>${SPORTS[s].name}</span></button>`).join('')}</div></div>
-    <div class="scroll wscroll">${WORLD[id](sp)}${worldExtras(id)}</div>
-    <div class="wcta">${WCTA[id] ? WCTA[id](ns) : `<button class="btn btn-accent" data-push="${ns[2]}" data-params='{"id":"${id}"}'>${icon('play', 18)}Iniciar ${sp.short.toLowerCase()}</button>`}</div></div>`;
+    <div class="scroll wscroll"><div class="wpage">${WORLD[id](sp, S)}${worldExtras(id, S)}</div></div>
+    <div class="wcta">${WCTA[id]()}</div></div>`;
 }
 function mountWorld(el, id) {
-  const w = $('.world', el) || el; const sp = SPORTS[id];
+  const w = $('.world', el) || el; const S = SS(id);
   $$('.w-title', w).forEach((t, i) => Motion.kinetic(t, 220 + i * 120));
   const sc = $('.wscroll', w); const top = $('.wtop', w); const hero = $('.w-hero .hero-stack', w);
-  sc.addEventListener('scroll', () => { requestAnimationFrame(() => { const y = sc.scrollTop; top.classList.toggle('solid', y > 300); if (hero) hero.style.transform = `translate3d(0,${y * .4}px,0) scale(${1 + y / 3000})`; }); }, { passive: true });
+  sc.addEventListener('scroll', () => requestAnimationFrame(() => { const y = sc.scrollTop; top.classList.toggle('solid', y > 300); if (hero) hero.style.transform = `translate3d(0,${y * .4}px,0) scale(${1 + y / 3000})`; }), { passive: true });
   const ch = $('.w-chart', w);
-  if (ch) { const ax = $('.w-axis', w); const setAx = p => ax && (ax.innerHTML = (p === 'M' ? ['S1', '', '', 'S4', '', '', 'S7', '', '', 'S10', '', 'S12'] : AXES[p]).map(x => `<span>${x}</span>`).join(''));
-    mountChart(ch, sp.metric.M, { unit: sp.metric.u, tipLabel: periodTip('M') }); setAx('M');
-    const sg = $('.w-seg .seg', w); sg && mountSeg(sg, b => { const p = b.dataset.per; ch._set(sp.metric[p]); setAx(p); }); }
+  if (ch) { const ax = $('.w-axis', w); const setAx = p => ax && (ax.innerHTML = S.labels[p].map(x => `<span>${x}</span>`).join(''));
+    mountChart(ch, S.series.M, { unit: S.metric.u, dec: S.metric.dec, tipLabel: (i) => ['Semana -11', 'Semana -10', 'Semana -9', 'Semana -8', 'Semana -7', 'Semana -6', 'Semana -5', 'Semana -4', 'Semana -3', 'Semana -2', 'Semana passada', 'Esta semana'][i] }); setAx('M');
+    const sg = $('.w-seg .seg', w); sg && mountSeg(sg, b => { const p = b.dataset.per; ch._set(S.series[p]); setAx(p); }); }
   const g = $('.w-gauge', w); if (g) setTimeout(() => animateGauge(g), 200);
   const sw = $('.wswitch', w); const on = $('.wsw.on', sw); on && setTimeout(() => on.scrollIntoView({ inline: 'center', block: 'nearest' }), 30);
   sw.addEventListener('click', e => { const b = e.target.closest('[data-wsw]'); if (!b || b.classList.contains('on')) return; switchWorld(el, b.dataset.wsw, b); });
   w.addEventListener('click', e => { const f = e.target.closest('[data-social-filter]'); if (f) { socialFilter = f.dataset.socialFilter; Nav.go('social'); }
-    const h = e.target.closest('[data-history]'); if (h) historySheet(id); const t = e.target.closest('[data-wtoast]'); if (t) toast(t.dataset.wtoast, 'spark'); });
-  wirePosts(w); wireProducts(w);
-  (WMOUNT[id] || (() => {}))(w);
+    if (e.target.closest('[data-goal]')) goalSheet(id, () => Screens.world.onReturn(el)); const t = e.target.closest('[data-wtoast]'); if (t) toast(t.dataset.wtoast, 'spark');
+    if (e.target.closest('[data-new-ficha]')) fichaEditor(null, () => Screens.world.onReturn(el));
+    const sk = e.target.closest('[data-skill]'); if (sk) toggleSkill(sk.dataset.skill, () => Screens.world.onReturn(el)); });
+  wireActRows(w); wireProducts(w); hydrateImages(w);
+  (async () => { const box = $('[data-async="w-ch"]', w); if (!box) return; try { const [mine, pub] = await Promise.all([API.myChallenges(), API.listChallenges()]); const m = new Map(); [...mine, ...pub].filter(c => c.sport === id).forEach(c => m.set(c.id, c)); const L = [...m.values()].slice(0, 8);
+    box.innerHTML = L.length ? `<div class="hscroll">${L.map(c => challengeCard(c)).join('')}</div>` : emptyBox(`Nenhum desafio de ${SPORTS[id].name.toLowerCase()} ainda.`, `<button class="btn btn-ghost btn-sm" data-new-ch="${id}">Criar desafio</button>`); Motion.fillBars(box);
+    box.addEventListener('click', e => { const n = e.target.closest('[data-new-ch]'); if (n) createChallengeSheet(n.dataset.newCh); }); } catch (x) { box.innerHTML = emptyBox(errMsg(x)); } })();
+  (async () => { const box = $('[data-async="w-feed"]', w); if (!box) return; try { const L = await API.feed({ sport: id }); box.innerHTML = L.length ? L.slice(0, 2).map(p => postCard(p, true)).join('<div style="height:18px"></div>') : emptyBox('Ninguém publicou neste esporte ainda. Que tal ser o primeiro?', `<button class="btn btn-ghost btn-sm" data-compose="${id}">Publicar</button>`); hydrateImages(box); wirePosts(box);
+    box.addEventListener('click', e => { const c = e.target.closest('[data-compose]'); if (c) composePost({ sport: c.dataset.compose }); }); } catch (x) { box.innerHTML = emptyBox(errMsg(x)); } })();
   Motion.drawLines(w);
 }
 function switchWorld(layer, id, btn) {
-  haptic(10); const old = $('.world', layer); const r = btn.getBoundingClientRect(), pr = $('.phone').getBoundingClientRect();
-  const cx = r.left - pr.left + r.width / 2, cy = r.top - pr.top + r.height / 2;
+  haptic(10); const old = $('.world', layer); const r = btn.getBoundingClientRect(), pr = $('#app').getBoundingClientRect(); const lr = layer.getBoundingClientRect();
+  const cx = r.left - lr.left + r.width / 2, cy = r.top - lr.top + r.height / 2;
   const tmp = document.createElement('div'); tmp.innerHTML = worldShell(id); const nw = tmp.firstElementChild; layer.appendChild(nw);
   const entry = Nav.stack.find(s => s.el === layer); if (entry) entry.params = { id };
-  A(nw, [{ clipPath: `circle(20px at ${cx}px ${cy}px)` }, { clipPath: `circle(1200px at ${cx}px ${cy}px)` }], { duration: 760, easing: 'cubic-bezier(.7,0,.2,1)' });
+  A(nw, [{ clipPath: `circle(20px at ${cx}px ${cy}px)` }, { clipPath: `circle(2200px at ${cx}px ${cy}px)` }], { duration: 760, easing: 'cubic-bezier(.7,0,.2,1)' });
   A(old, [{ transform: 'scale(1)', filter: 'brightness(1)' }, { transform: 'scale(.94)', filter: 'brightness(.4)' }], { duration: 760, easing: 'cubic-bezier(.7,0,.2,1)' }).finished.then(() => old.remove());
   const hero = $('.w-hero .hero-stack', nw); hero && A(hero, [{ transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 1400, easing: 'out' });
   mountWorld(nw, id); Motion.enter(nw, 260, 45);
 }
+async function toggleSkill(name, done) { const s = new Set(API.me.skills || []); s.has(name) ? s.delete(name) : s.add(name); try { await API.updateProfile({ skills: [...s] }); haptic(8); done && done(); } catch (x) { toast(errMsg(x), 'x'); } }
 
-/* ---------- Shared bottom sections inside a world ---------- */
-function worldExtras(id) {
-  const sp = SPORTS[id]; const chs = CHALLENGES.filter(c => c.sport === id); const post = FEED.find(p => p.sport === id);
+function worldExtras(id, S) {
+  const sp = SPORTS[id];
   return `<div class="pad">
-    ${chs.length ? `<div class="wsec"><h2>Desafios de ${sp.name.toLowerCase()}</h2></div><div class="hscroll">${chs.map(c => challengeCard(c)).join('')}</div>` : ''}
-    ${post ? `<div class="wsec"><h2>Comunidade</h2><button class="link" data-social-filter="${id}">Ver feed</button></div>${postCard(post, true)}` : ''}
-    <div class="wsec"><h2>Equipamentos</h2><button class="link" data-push="shop" data-params='{"id":"${id}"}'>Loja</button></div>
-    <div class="hscroll">${PRODUCTS[id].map((p, i) => productCard(p, id, i)).join('')}</div>
-    <div class="wsec"><h2>Playlists</h2><button class="link" data-push="music" data-params='{"id":"${id}"}'>Música</button></div>
-    <div class="hscroll">${PLAYLISTS[id].map((p, i) => `<button style="width:150px;text-align:left" class="press" data-push="music" data-params='{"id":"${id}"}'>${coverArt(p[0], id, p[2], i)}<div class="small wmute" style="margin-top:8px">${p[1]}</div></button>`).join('')}</div>
-    <div style="margin-top:26px;text-align:center">${demoBadge()}</div><div style="height:40px"></div></div>`;
+    <div class="wsec"><h2>Histórico</h2><span class="wmute small">${S.count} ${S.count === 1 ? 'atividade' : 'atividades'}</span></div>
+    ${S.count ? `<div class="stack">${S.list.slice(0, 6).map(actRow).join('')}</div>` : emptyBox(`Sua primeira atividade de ${sp.name.toLowerCase()} aparece aqui.`)}
+    <div class="wsec"><h2>Desafios de ${sp.name.toLowerCase()}</h2></div><div data-async="w-ch"><div class="card skeleton" style="height:120px"></div></div>
+    <div class="wsec"><h2>Comunidade</h2><button class="link" data-social-filter="${id}">Ver feed</button></div><div data-async="w-feed"><div class="card skeleton" style="height:200px"></div></div>
+    <div class="wsec"><h2>Equipamentos</h2><span class="wmute small">busca nas lojas</span></div>
+    <div class="hscroll">${SHOP[id].map((p, i) => productCard(p, id, i)).join('')}</div>
+    <div class="wsec"><h2>Playlists</h2><span class="wmute small">abre no Spotify</span></div>
+    <div class="hscroll">${MUSIC[id].map((p, i) => `<a style="width:150px;text-align:left;display:block;color:inherit;text-decoration:none" class="press" href="${spotifyUrl(p[0])}" target="_blank" rel="noopener">${coverArt(p[0], id, p[2], i)}<div class="small wmute" style="margin-top:8px">${p[1]}</div></a>`).join('')}</div>
+    <div style="height:40px"></div></div>`;
 }
-const chartCard = (cls = 'card', extra = '') => `<div class="${cls}" style="${extra}"><div class="w-seg" style="margin-bottom:16px">${seg([['W', 'Semana'], ['M', '12 semanas'], ['Y', 'Ano']], 'M', 'per')}</div>${chartHTML('wch' + Math.random().toString(36).slice(2, 7)).replace('class="chart"', 'class="chart w-chart"')}<div class="axis w-axis"></div></div>`;
-
+const chartCard = (cls = 'card', extra = '') => `<div class="${cls}" style="${extra}"><div class="w-seg" style="margin-bottom:16px">${seg([['W', 'Semana'], ['M', '12 semanas'], ['Y', '12 meses']], 'M', 'per')}</div>${chartHTML('wch' + Math.random().toString(36).slice(2, 7)).replace('class="chart"', 'class="chart w-chart"')}<div class="axis w-axis"></div></div>`;
+const recList = (S, cls = 'list-item', st = '') => S.records.length ? `<div class="stack">${S.records.map(r => `<div class="${cls}" style="${st}display:flex;align-items:center;gap:14px;padding:14px"><span class="ico" style="width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.08)">${icon('medal', 19)}</span><div style="flex:1"><div class="h3">${esc(r.k)}</div><div class="wmute small">${r.d}</div></div><span class="num" style="font-size:18px">${r.v}</span></div>`).join('')}</div>` : emptyBox('Seus recordes pessoais aparecem aqui conforme você treina.');
 const WCTA = {
-  corrida: ns => `<button class="btn" style="background:#0E1412;color:#fff;box-shadow:0 14px 30px -12px rgba(0,0,0,.5)" data-push="runLive" data-params='{"id":"corrida"}'>Iniciar corrida</button>`,
-  calistenia: ns => `<button class="btn" style="background:linear-gradient(90deg,#A3FF12,#1FCB6B);color:#06140A" data-push="genericLive" data-params='{"id":"calistenia","p":0}'>${icon('bolt', 18, 2)}Começar progressão</button>`,
-  futebol: ns => `<button class="btn" style="background:#FFC23D;color:#1A1200" data-push="genericLive" data-params='{"id":"futebol","p":0}'>${icon('ball', 18, 2)}Registrar partida</button>`,
-  natacao: ns => `<button class="btn" style="background:#0A2C57;color:#fff;border:1px solid rgba(255,255,255,.25)" data-push="genericLive" data-params='{"id":"natacao","p":0}'>${icon('swim', 18, 2)}Iniciar série</button>`,
-  boxe: ns => `<button class="btn" style="background:#FF3B4E;color:#fff;box-shadow:0 14px 34px -10px #FF3B4E" data-push="genericLive" data-params='{"id":"boxe","p":0}'>${icon('glove', 18, 2)}Iniciar rounds</button>`,
-  ciclismo: ns => `<button class="btn" style="background:#FF7426;color:#fff;box-shadow:0 14px 34px -10px #FF7426" data-push="runLive" data-params='{"id":"ciclismo"}'>${icon('bike', 18, 2)}Começar pedal</button>`,
-  musculacao: ns => `<button class="btn btn-white" data-push="liftLive" data-params='{}' style="justify-content:flex-start;padding-left:28px">Começar treino A<span class="knob" style="background:#0B0B0B">${icon('arrow', 20, 2)}</span></button>`,
+  musculacao: () => { const w = nextWorkout(); return w ? `<button class="btn btn-white" data-push="liftLive" data-params='${JSON.stringify({ wid: w.id })}' style="justify-content:flex-start;padding-left:28px">Começar ${esc(w.name)}<span class="knob" style="background:#0B0B0B">${icon('arrow', 20, 2)}</span></button>` : `<button class="btn btn-white" data-new-ficha>${icon('plus', 18)}Criar minha primeira ficha</button>`; },
+  corrida: () => `<button class="btn" style="background:#0E1412;color:#fff;box-shadow:0 14px 30px -12px rgba(0,0,0,.5)" data-push="runLive" data-params='{"id":"corrida"}'>${icon('pin', 18)}Iniciar corrida com GPS</button>`,
+  calistenia: () => `<button class="btn" style="background:linear-gradient(90deg,#A3FF12,#1FCB6B);color:#06140A" data-push="genericLive" data-params='{"id":"calistenia"}'>${icon('bolt', 18, 2)}Começar sessão</button>`,
+  futebol: () => `<button class="btn" style="background:#FFC23D;color:#1A1200" data-push="genericLive" data-params='{"id":"futebol"}'>${icon('ball', 18, 2)}Registrar partida</button>`,
+  natacao: () => `<button class="btn" style="background:#fff;color:#0A2C57" data-push="genericLive" data-params='{"id":"natacao"}'>${icon('swim', 18, 2)}Iniciar treino</button>`,
+  boxe: () => `<button class="btn" style="background:#FF3B4E;color:#fff;box-shadow:0 14px 34px -10px #FF3B4E" data-push="genericLive" data-params='{"id":"boxe"}'>${icon('glove', 18, 2)}Iniciar rounds</button>`,
+  ciclismo: () => `<button class="btn" style="background:#FF7426;color:#fff;box-shadow:0 14px 34px -10px #FF7426" data-push="runLive" data-params='{"id":"ciclismo"}'>${icon('bike', 18, 2)}Começar pedal com GPS</button>`,
 };
-const WMOUNT = {};
-
-/* ================= 1. Musculação — noite azul (ref. FitPulse) ================= */
 const WORLD = {};
-WORLD.musculacao = sp => `
-  <div class="w-hero" style="height:560px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('musculacao', 'musculacao', { eager: true, fade: 'background:linear-gradient(180deg,rgba(6,20,38,.6),transparent 25%,transparent 50%,rgba(6,20,38,.85) 80%,#061426)', grade: true })}</div>
-    <div style="position:absolute;left:20px;top:calc(var(--safe-top) + 70px)"><h1 class="w-title" style="font-family:var(--display);font-weight:600;font-size:30px;line-height:1.1;margin:0;letter-spacing:-.02em">Olá, ${esc(firstName())},</h1><div style="font-family:var(--display);font-weight:300;font-size:28px;letter-spacing:-.02em" data-e="1">Bem-vindo de volta!</div></div>
-    <div style="position:absolute;left:16px;right:16px;bottom:10px">
-      <div class="h2" style="font-size:20px;margin-bottom:12px" data-e="2">Minha saúde</div>
-      <div class="fp-card row" style="gap:0;padding:14px" data-e="3"><div style="flex:1"><div class="h3" style="margin-bottom:12px">Estatísticas da semana</div><div class="row" style="gap:10px">${['route', 'timer', 'flame', 'medal'].map(i => `<span class="fp-ic">${icon(i, 19)}</span>`).join('')}</div></div>
-        <span style="width:1px;align-self:stretch;background:rgba(255,255,255,.15);margin:0 14px"></span><button class="row" style="flex-direction:column;gap:6px;font-size:11px;text-align:center" data-push="workout" data-params='{"f":"A"}'><span class="fp-ic">${icon('plus', 20)}</span>Novo<br>treino</button></div></div></div>
-  <div class="pad">
-    <div class="wsec" data-e="4"><h2>Treino ativo</h2></div>
-    <button class="fp-card press" style="width:100%;text-align:left;display:grid;grid-template-columns:1.2fr auto auto;gap:12px;align-items:center" data-push="workout" data-params='{"f":"A"}' data-e="5">
-      <div><div class="h2" style="font-size:20px;line-height:1.15">Força<br>Peito & Tríceps</div><div style="height:1px;background:rgba(255,255,255,.15);margin:12px 0"></div><div class="wmute small">Calorias</div><div class="num" style="font-size:18px">450 kcal</div></div>
-      <div class="stack" style="gap:8px;align-items:center"><span class="fp-pill">Sequência<b style="font-size:13px">5 dias</b></span><span class="fp-ic">${icon('flame', 18)}</span></div>
-      <div class="stack" style="gap:8px;align-items:center">${ring(.75, { size: 70, sw: 6, color: '#4C8DFF', inner: `<span style="font-size:10px;line-height:1.2">Progresso<br><b style="font-size:13px">75%</b></span>` })}<span class="fp-pill"><span><span class="dot" style="display:inline-block;width:6px;height:6px"></span> Treinos</span><b style="font-size:13px">12/16</b></span></div></button>
-    <div class="wsec" data-e="6"><h2>Hoje</h2></div>
-    <div class="fp-card" data-e="7"><div style="text-align:center" class="h2">Treino de força</div>
-      <div class="row" style="justify-content:center;gap:10px;margin:12px 0">${['route', 'timer', 'flame', 'medal'].map(i => `<span class="fp-ic">${icon(i, 18)}</span>`).join('')}</div>
-      <div class="between"><div><div class="h3">Registro</div><span class="tag" style="margin-top:6px;background:#000"><span class="dot"></span>Modo automático</span></div><button class="fp-ic" aria-label="Expandir" data-push="exercise" data-params='{"i":0}'>${icon('expand', 18)}</button></div>
-      <div class="w-gauge" style="margin:8px 0">${gauge(.75, { w: 290, color: '#7FB2FF', label: 'Progresso' })}</div>
-      ${[['timer', 'Duração', '60:25', 'min'], ['flame', 'Volume', '18,4', 't']].map(r => `<div class="between" style="padding:12px 0;border-top:1px solid rgba(255,255,255,.1)"><div class="row"><span class="fp-ic">${icon(r[0], 18)}</span><span>${r[1]}</span></div><div style="text-align:right"><div class="num" style="font-size:18px">${r[2]}</div><div class="wmute" style="font-size:11px">${r[3]}</div></div></div>`).join('')}</div>
-    <div class="fp-card between" style="margin-top:12px;border-radius:999px;padding:10px 18px" data-e="8"><div class="row"><button class="switch" role="switch" aria-checked="true" aria-label="Registro inteligente" onclick="this.setAttribute('aria-checked',this.getAttribute('aria-checked')!=='true')"></button><span>Ativo</span></div><span>Registro inteligente</span></div>
-    <div class="wsec"><h2>Suas fichas</h2><button class="link" data-history>Histórico</button></div>
-    <div class="stack">${FICHAS.map(f => `<button class="fp-card press row" style="text-align:left;padding:12px" data-push="workout" data-params='{"f":"${f.id}"}'><span class="fp-ic" style="width:46px;height:46px;font-family:var(--display);font-weight:700;font-size:18px">${f.id}</span><div style="flex:1"><div class="h3">${f.sub}</div><div class="wmute small">${f.ex} exercícios · ${f.min} min · ${f.last}</div></div>${icon('next', 18)}</button>`).join('')}</div>
-    <div class="wsec"><h2>Evolução de volume</h2></div>${chartCard('fp-card')}
-    <div class="wsec"><h2>Recordes</h2></div><div class="fp-card stack" style="gap:12px">${sp.records.map(r => `<div class="between"><div class="row"><span class="fp-ic" style="color:#7FB2FF">${icon('medal', 18)}</span>${r.k}</div><div style="text-align:right"><div class="num" style="font-size:17px">${r.v}</div><div class="wmute" style="font-size:11px">${r.d}</div></div></div>`).join('')}</div>
-  </div>`;
 
-/* ================= 2. Corrida — run club claro (ref. Nike Run Club) ================= */
-WORLD.corrida = sp => `
-  <div class="w-hero" style="height:700px;border-radius:0 0 36px 36px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('corrida', 'corrida', { eager: true, filter: 'grayscale(.55) contrast(1.02) brightness(1.18)', grade: false, fade: 'background:linear-gradient(180deg,rgba(64,104,98,.5),rgba(80,122,116,.18) 35%,rgba(56,92,86,.3) 70%,rgba(36,64,60,.85))' })}</div>
-    <div style="position:absolute;left:20px;right:20px;top:calc(var(--safe-top) + 74px)">
+/* 1. Musculação — noite azul */
+WORLD.musculacao = (sp, S) => { const nw = nextWorkout(); const lastL = S.last; const wk = S.week; const sets = wk.reduce((s, a) => s + (a.sets || []).length, 0); const vol = wk.reduce((s, a) => s + (a.volume || 0), 0) / 1000; const time = wk.reduce((s, a) => s + (a.duration || 0), 0);
+  return `<div class="w-hero" style="height:560px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('musculacao', 'musculacao', { eager: true, fade: 'background:linear-gradient(180deg,rgba(6,20,38,.6),transparent 25%,transparent 50%,rgba(6,20,38,.85) 80%,#061426)' })}</div>
+    <div class="w-hero-in" style="position:absolute;left:20px;top:calc(var(--safe-top) + 70px)"><h1 class="w-title" style="font-family:var(--display);font-weight:600;font-size:30px;line-height:1.1;margin:0;letter-spacing:-.02em">Olá, ${esc(firstName())},</h1><div style="font-family:var(--display);font-weight:300;font-size:28px;letter-spacing:-.02em" data-e="1">${lastL ? 'Bem-vindo de volta!' : 'Bora começar?'}</div></div>
+    <div class="w-hero-in" style="position:absolute;left:16px;right:16px;bottom:10px"><div class="h2" style="font-size:20px;margin-bottom:12px" data-e="2">Sua semana</div>
+      <div class="fp-card" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center" data-e="3">${[['bolt', wk.length, 'treinos'], ['flame', fmt(vol, 1), 't volume'], ['grid', sets, 'séries'], ['timer', hms(time), 'tempo']].map(x => `<div><span class="fp-ic" style="margin:0 auto">${icon(x[0], 18)}</span><div class="num" style="font-size:17px;margin-top:8px">${x[1]}</div><div class="wmute" style="font-size:10.5px">${x[2]}</div></div>`).join('')}</div></div></div>
+  <div class="pad"><div class="wgrid">
+   <div><div class="wsec" data-e="4"><h2>Próximo treino</h2><button class="link" data-new-ficha>+ Nova ficha</button></div>
+    ${nw ? `<button class="fp-card press" style="width:100%;text-align:left;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center" data-push="workout" data-params='${JSON.stringify({ wid: nw.id })}' data-e="5"><div><div class="h2" style="font-size:20px;line-height:1.15">${esc(nw.name)}<br><span style="font-weight:400;opacity:.8">${esc(nw.focus || '')}</span></div><div style="height:1px;background:rgba(255,255,255,.15);margin:12px 0"></div><div class="wmute small">${nw.exercises.length} exercícios · ${nw.exercises.reduce((s, e) => s + e.sets, 0)} séries</div></div>
+      ${ring(S.goal.p, { size: 76, sw: 6, color: '#4C8DFF', inner: `<span style="font-size:10px;line-height:1.2">Meta<br><b style="font-size:13px">${S.goal.value}/${S.goal.target}</b></span>` })}</button>`
+    : `<div class="fp-card" style="text-align:center;padding:24px" data-e="5"><div class="h3">Você ainda não tem fichas</div><p class="wmute small" style="margin:8px 0 14px">Comece de um modelo (A, B, C, D) ou monte do zero.</p><button class="btn btn-white btn-sm" data-new-ficha>Criar ficha</button></div>`}
+    <div class="wsec"><h2>Meta da semana</h2><button class="link" data-goal>Editar</button></div>
+    <div class="fp-card"><div class="w-gauge">${gauge(S.goal.p, { w: 290, color: '#7FB2FF', label: `${S.goal.value} de ${S.goal.target} ${S.goal.unit}` })}</div>
+      ${[['timer', 'Tempo na semana', hms(time)], ['flame', 'Volume na semana', fmt(vol, 1) + ' t'], ['medal', 'Volume total', fmt(S.total, 1) + ' t']].map(r => `<div class="between" style="padding:12px 0;border-top:1px solid rgba(255,255,255,.1)"><div class="row"><span class="fp-ic">${icon(r[0], 18)}</span><span>${r[1]}</span></div><div class="num" style="font-size:17px">${r[2]}</div></div>`).join('')}</div></div>
+   <div><div class="wsec"><h2>Suas fichas</h2><span class="wmute small">${API.workouts.length}</span></div>
+    ${API.workouts.length ? `<div class="stack">${API.workouts.map(f => `<button class="fp-card press row" style="text-align:left;padding:12px" data-push="workout" data-params='${JSON.stringify({ wid: f.id })}'><span class="fp-ic" style="width:46px;height:46px;font-family:var(--display);font-weight:700;font-size:16px">${esc((f.name.match(/\b([A-Z])\b/) || [0, f.name[0]])[1])}</span><div style="flex:1;min-width:0"><div class="h3">${esc(f.name)}${f.focus ? ' — ' + esc(f.focus) : ''}</div><div class="wmute small">${f.exercises.length} exercícios</div></div>${icon('next', 18)}</button>`).join('')}</div>` : emptyBox('Crie fichas com seus exercícios, séries, repetições e cargas.')}
+    <div class="wsec"><h2>Evolução do volume</h2></div>${chartCard('fp-card')}
+    <div class="wsec"><h2>Recordes</h2></div>${recList(S, 'fp-card')}</div></div></div>`; };
+
+/* 2. Corrida — run club claro */
+WORLD.corrida = (sp, S) => { const L = S.last;
+  return `<div class="w-hero" style="height:700px;border-radius:0 0 36px 36px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('corrida', 'corrida', { eager: true, filter: 'grayscale(.55) contrast(1.02) brightness(1.18)', grade: false, fade: 'background:linear-gradient(180deg,rgba(64,104,98,.5),rgba(80,122,116,.18) 35%,rgba(56,92,86,.3) 70%,rgba(36,64,60,.85))' })}</div>
+    <div class="w-hero-in" style="position:absolute;left:20px;right:20px;top:calc(var(--safe-top) + 74px)">
       <h1 class="w-title" style="font-family:var(--display);font-weight:700;font-size:40px;line-height:1;margin:0;color:#fff;letter-spacing:-.04em">Cada corrida</h1>
       <h1 class="w-title" style="font-family:var(--display);font-weight:700;font-size:40px;line-height:1;margin:0;color:rgba(255,255,255,.55);letter-spacing:-.04em">conta sua história.</h1>
-      <div class="row" style="gap:8px;margin-top:18px;overflow-x:auto;scrollbar-width:none" data-e="2"><button class="nrc-chip on" data-push="runLive" data-params='{"id":"corrida"}'>Iniciar corrida</button><button class="nrc-chip" data-wtoast="Corridas guiadas: prévia">Corridas guiadas</button><button class="nrc-chip" data-wtoast="Aquecimento guiado: prévia">Aquecimento</button></div></div>
-    <div style="position:absolute;left:16px;right:16px;bottom:22px" class="grid2" data-e="3">
-      <div class="nrc-glass"><div class="small" style="opacity:.85">${icon('timer', 14, 2, 'style="display:inline;vertical-align:-2px"')} Tempo na zona</div><div style="position:relative;height:18px;margin:14px 0 8px"><div style="position:absolute;top:8px;left:0;right:0;height:2px;background:linear-gradient(90deg,rgba(255,255,255,.2),#fff)"></div><div style="position:absolute;top:2px;right:14%;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid #fff"></div></div><div class="num" style="font-size:22px">92%</div></div>
-      <div class="nrc-glass"><div class="small" style="opacity:.85">${icon('route', 14, 2, 'style="display:inline;vertical-align:-2px"')} Distância total</div><div style="display:flex;gap:3px;height:18px;align-items:flex-end;margin:14px 0 8px">${Array.from({ length: 22 }, (_, i) => `<i style="flex:1;height:${i % 5 === 0 ? 18 : 10}px;background:rgba(255,255,255,${i < 16 ? .9 : .35})"></i>`).join('')}</div><div class="num" style="font-size:22px">28,6 <span style="font-size:13px;opacity:.8">km</span></div></div></div></div>
-  <div class="pad" style="padding-top:22px">
-    <div class="between" data-e="4"><div><div class="muted small">Hoje · 6:34</div><div style="font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:-.03em;margin-top:4px">Semana 3 — Corrida leve</div></div><button class="icon-btn" style="background:#fff" aria-label="Editar plano" data-wtoast="Plano de treino: prévia">${icon('edit', 18)}</button></div>
-    <div class="grid2" style="margin-top:16px" data-e="5">${[['speed', 'Pace médio', `5'07"`], ['mountain', 'Elevação', '86 m'], ['clock', 'Tempo', '30:48'], ['heartbeat', 'Cadência', '172']].map(c => `<div class="nrc-card"><div class="row small muted" style="gap:8px">${icon(c[0], 16)}${c[1]}</div><div class="num" style="font-size:30px;margin-top:14px;color:#0E1412">${c[2]}</div></div>`).join('')}</div>
-    <div class="nrc-card" style="padding:0;overflow:hidden;margin-top:12px;height:280px;position:relative" data-e="6">${mapSVG(0, { id: 'nrcmap', accent: '#0E1412', light: true, h: 500 })}
-      ${[['Parque da orla', 18, 16], ['1 km', 60, 64], ['3 km', 10, 70], ['5 km', 70, 22]].map(l => `<span style="position:absolute;left:${l[2]}%;top:${l[1]}%;background:#fff;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.12)">${l[0]}</span>`).join('')}</div>
-    <div class="wsec"><h2>Pace por km</h2><span class="muted small">última corrida</span></div>
-    <div class="nrc-card stack" style="gap:10px">${[5.32, 5.18, 5.1, 5.05, 4.96].map((v, i) => `<div class="row" style="gap:12px"><span class="muted small" style="width:34px">km ${i + 1}</span><div style="flex:1;height:8px;border-radius:8px;background:#EEF1F0;overflow:hidden"><i data-bar="${(5.6 - v) / .8}" data-delay="${i * 90}" style="display:block;height:100%;background:#0E1412;border-radius:8px;transform-origin:left;transform:scaleX(0)"></i></div><span class="num" style="font-size:15px;width:44px;text-align:right">${paceStr(v)}</span></div>`).join('')}</div>
-    <div class="wsec"><h2>Distância</h2></div>${chartCard('nrc-card')}
-    <div class="wsec"><h2>Recordes</h2></div><div class="stack">${sp.records.map(r => `<div class="list-item"><span class="ico">${icon('medal', 20)}</span><div style="flex:1"><div class="h3">${r.k}</div><div class="muted small">${r.d}</div></div><span class="num" style="font-size:18px">${r.v}</span></div>`).join('')}</div>
-  </div>`;
+      <div class="row" style="gap:8px;margin-top:18px;flex-wrap:wrap" data-e="2"><button class="nrc-chip on" data-push="runLive" data-params='{"id":"corrida"}'>Iniciar corrida</button><button class="nrc-chip" data-goal>Meta semanal</button><button class="nrc-chip" data-push="manualAct" data-params='{"id":"corrida"}'>Adicionar manual</button></div></div>
+    <div class="w-hero-in grid2" style="position:absolute;left:16px;right:16px;bottom:22px" data-e="3">
+      <button class="nrc-glass" style="text-align:left" data-goal><div class="small" style="opacity:.85">${icon('timer', 14, 2, 'style="display:inline;vertical-align:-2px"')} Meta da semana</div><div style="position:relative;height:18px;margin:14px 0 8px"><div style="position:absolute;top:8px;left:0;right:0;height:2px;background:rgba(255,255,255,.25)"></div><div style="position:absolute;top:8px;left:0;width:${S.goal.p * 100}%;height:2px;background:#fff"></div><div style="position:absolute;top:2px;left:calc(${S.goal.p * 100}% - 7px);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid #fff"></div></div><div class="num" style="font-size:22px">${Math.round(S.goal.p * 100)}%</div></button>
+      <div class="nrc-glass"><div class="small" style="opacity:.85">${icon('route', 14, 2, 'style="display:inline;vertical-align:-2px"')} Na semana</div><div style="display:flex;gap:3px;height:18px;align-items:flex-end;margin:14px 0 8px">${Array.from({ length: 22 }, (_, i) => `<i style="flex:1;height:${i % 5 === 0 ? 18 : 10}px;background:rgba(255,255,255,${i / 22 < S.goal.p ? .9 : .3})"></i>`).join('')}</div><div class="num" style="font-size:22px">${nv(S.weekTotal, 1)} <span style="font-size:13px;opacity:.8">km</span></div></div></div></div>
+  <div class="pad" style="padding-top:22px"><div class="wgrid">
+   <div>${L ? `<div class="between" data-e="4"><div><div class="muted small">Última corrida · ${new Date(L.startedAt).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' })}</div><div style="font-family:var(--display);font-weight:700;font-size:24px;letter-spacing:-.03em;margin-top:4px">${esc(L.title || 'Corrida')}</div></div></div>
+    <div class="grid2" style="margin-top:16px" data-e="5">${[['speed', 'Pace médio', paceOf(L.duration, L.distance)], ['route', 'Distância', fmt((L.distance || 0) / 1000, 2) + ' km'], ['clock', 'Tempo', hms(L.duration)], ['heartbeat', 'Corridas na semana', String(S.weekCount)]].map(c => `<div class="nrc-card"><div class="row small muted" style="gap:8px">${icon(c[0], 16)}${c[1]}</div><div class="num" style="font-size:28px;margin-top:14px;color:#0E1412">${c[2]}</div></div>`).join('')}</div>
+    ${L.route && L.route.length > 1 ? `<div class="nrc-card" style="padding:0;overflow:hidden;margin-top:12px;height:280px;position:relative">${routeSVG(L.route, { color: '#0E1412', light: true })}</div>` : ''}
+    ${L.splits && L.splits.length ? `<div class="wsec"><h2>Pace por km</h2><span class="muted small">última corrida</span></div><div class="nrc-card stack" style="gap:10px">${(() => { const mx = Math.max(...L.splits), mn = Math.min(...L.splits); return L.splits.slice(0, 12).map((v, i) => `<div class="row" style="gap:12px"><span class="muted small" style="width:38px">km ${i + 1}</span><div style="flex:1;height:8px;border-radius:8px;background:#EEF1F0;overflow:hidden"><i data-bar="${mx === mn ? 1 : .35 + .65 * (mx - v) / (mx - mn)}" data-delay="${i * 70}" style="display:block;height:100%;background:#0E1412;border-radius:8px;transform-origin:left;transform:scaleX(0)"></i></div><span class="num" style="font-size:15px;width:48px;text-align:right">${paceStr(v / 60)}</span></div>`).join(''); })()}</div>` : ''}`
+    : `<div class="nrc-card" style="text-align:center;padding:28px" data-e="4"><div style="font-family:var(--display);font-weight:700;font-size:22px">Sua primeira corrida</div><p class="muted small" style="margin:8px 0 0;line-height:1.55">Toque em <b>Iniciar corrida com GPS</b>. Mantenha a tela ligada: o trajeto, a distância e o pace são gravados em tempo real.</p></div>`}</div>
+   <div><div class="wsec"><h2>Distância</h2></div>${chartCard('nrc-card')}
+    <div class="wsec"><h2>Recordes</h2></div>${recList(S)}</div></div></div>`; };
 
-/* ================= 3. Ciclismo — vidro e laranja (ref. azul/laranja) ================= */
-WORLD.ciclismo = sp => `
-  <div class="w-hero" style="height:600px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('ciclismo', 'ciclismo', { eager: true, grade: false, fade: 'background:linear-gradient(180deg,rgba(30,50,72,.6),transparent 30%,transparent 55%,rgba(30,50,72,.95))' })}</div>
-    <div style="position:absolute;left:20px;right:20px;top:calc(var(--safe-top) + 76px)"><h1 class="w-title" style="font-family:var(--display);font-weight:700;font-size:40px;line-height:1.05;margin:0;letter-spacing:-.04em">Pedale forte</h1><div data-e="1" style="font-family:var(--display);font-weight:700;font-size:40px;line-height:1.1;letter-spacing:-.04em">Vá <span class="ax-hl">longe</span></div></div>
-    <div style="position:absolute;right:16px;top:340px" class="row" data-e="2"><span style="width:10px;height:10px;border-radius:50%;background:#FF7426;box-shadow:0 0 0 4px rgba(255,116,38,.3)"></span><span style="width:50px;border-top:2px dashed rgba(255,255,255,.6)"></span><span class="ax-pill">${icon('heartbeat', 16)}<b>148</b> bpm</span></div>
-    <div style="position:absolute;left:12px;right:12px;bottom:14px" class="ax-card" data-e="3"><div class="row" style="gap:8px;flex-wrap:wrap">${[['flame', 'Potência'], ['speed', 'Cadência'], ['mountain', 'Subidas']].map(c => `<span class="ax-pill">${icon(c[0], 15)}${c[1]}</span>`).join('')}</div>
-      <div class="row" style="margin-top:14px;gap:10px"><span class="wmute small" style="flex:1">Plano de hoje: base aeróbica, 40 km em zona 2</span><button class="icon-btn" style="background:radial-gradient(circle at 35% 30%,#FFB07A,#FF7426);color:#fff" aria-label="Iniciar" data-push="runLive" data-params='{"id":"ciclismo"}'>${icon('arrow', 20, 2)}</button></div></div></div>
-  <div class="pad">
-    <div class="ax-card" style="margin-top:18px" data-e="4"><div class="row"><span class="fp-ic">${icon('chart', 18)}</span><div><div class="h3">Atividade diária</div><div class="wmute small">Continue pedalando todo dia.</div></div></div>
-      <div style="position:relative;width:260px;height:150px;margin:18px auto 0"><svg viewBox="0 0 260 150" width="260" height="150" aria-hidden="true"><path d="M20 140 A110 110 0 0 1 240 140" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="22" stroke-linecap="round" stroke-dasharray="4 6"/><path d="M20 140 A110 110 0 0 1 207 62" fill="none" stroke="#FF7426" stroke-width="22" stroke-linecap="round" data-draw="1600"/><circle cx="207" cy="62" r="7" fill="#fff"/></svg>
-        <div style="position:absolute;left:0;right:0;bottom:6px;text-align:center"><div class="num" style="font-size:50px;line-height:1"><span data-count="80">0</span></div><div class="wmute small">Pontuação</div></div></div>
-      <div class="grid2" style="margin-top:14px">${[['speed', 'Cadência', '88', 'rpm'], ['mountain', 'Elevação', '640', 'm']].map(t => `<div class="ax-card" style="padding:14px;border-radius:24px"><div class="row" style="gap:8px">${ring(.7, { size: 40, sw: 3, color: '#FF7426', inner: icon(t[0], 16) })}<span class="h3">${t[1]}</span></div><div class="num" style="font-size:28px;margin-top:10px">${t[2]} <span class="small wmute">${t[3]}</span></div></div>`).join('')}</div></div>
-    <div class="ax-card" style="margin-top:12px;padding:0;overflow:hidden;height:190px" data-e="5"><img src="${photo('ciclismo', 1)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(2px) brightness(.7)">
-      <div style="position:absolute;left:18px;top:16px" class="row"><span class="fp-ic">${icon('bike', 18)}</span><div><div class="h3">Pedal matinal</div><div class="small" style="opacity:.8">Comece o dia na estrada.</div></div></div>
-      <button class="icon-btn" style="position:absolute;right:16px;top:16px;background:rgba(255,255,255,.85);color:#1E3248" aria-label="Abrir pedal" data-push="runLive" data-params='{"id":"ciclismo"}'>${icon('up', 20, 2)}</button>
-      <div class="num" style="position:absolute;left:18px;bottom:14px;font-size:40px">42,6<span style="font-size:16px"> km</span></div></div>
-    <div class="wsec"><h2>Modo pedal</h2><span class="wmute small">21 pedalando hoje</span></div>
-    <div class="ax-card" style="padding:0;overflow:hidden;height:300px;position:relative">${mapSVG(1, { id: 'axmap', accent: '#FF7426', h: 500 })}
-      ${[['theo', 22, 58, '4,3 km'], ['gui', 62, 30, '4,5 km'], ['marina', 70, 64, '2,1 km']].map(p => `<span style="position:absolute;left:${p[2]}%;top:${p[1]}%;display:flex;flex-direction:column;align-items:center;gap:6px"><span class="tag" style="background:rgba(30,50,72,.85)">${p[3]}</span>${av(p[0], 'sm')}</span>`).join('')}
-      <div class="ax-card" style="position:absolute;left:12px;right:12px;bottom:12px;padding:10px 14px;border-radius:999px;display:flex;justify-content:space-around;text-align:center"><div><div class="num" style="font-size:18px">638</div><div class="wmute" style="font-size:10px">kcal</div></div><div><div class="num" style="font-size:18px">45:25</div><div class="wmute" style="font-size:10px">duração</div></div><div><div class="num" style="font-size:18px">27,4</div><div class="wmute" style="font-size:10px">km/h</div></div></div></div>
-    <div class="wsec"><h2>Distância</h2></div>${chartCard('ax-card')}
-  </div>`;
+/* 3. Ciclismo — vidro e laranja */
+WORLD.ciclismo = (sp, S) => { const L = S.last; const spd = S.week.length ? S.week.reduce((s, a) => s + (a.distance || 0), 0) / Math.max(1, S.week.reduce((s, a) => s + (a.duration || 0), 0)) * 3.6 : 0;
+  return `<div class="w-hero" style="height:600px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('ciclismo', 'ciclismo', { eager: true, grade: false, fade: 'background:linear-gradient(180deg,rgba(30,50,72,.6),transparent 30%,transparent 55%,rgba(30,50,72,.95))' })}</div>
+    <div class="w-hero-in" style="position:absolute;left:20px;right:20px;top:calc(var(--safe-top) + 76px)"><h1 class="w-title" style="font-family:var(--display);font-weight:700;font-size:40px;line-height:1.05;margin:0;letter-spacing:-.04em">Pedale forte</h1><div data-e="1" style="font-family:var(--display);font-weight:700;font-size:40px;line-height:1.1;letter-spacing:-.04em">Vá <span class="ax-hl">longe</span></div></div>
+    <div class="w-hero-in ax-card" style="position:absolute;left:12px;right:12px;bottom:14px" data-e="3"><div class="row" style="gap:8px;flex-wrap:wrap"><span class="ax-pill">${icon('route', 15)}${nv(S.weekTotal, 1)} km na semana</span><span class="ax-pill">${icon('bike', 15)}${S.weekCount} pedais</span><span class="ax-pill">${icon('speed', 15)}${fmt(spd, 1)} km/h</span></div>
+      <div class="row" style="margin-top:14px;gap:10px"><span class="wmute small" style="flex:1">Meta: ${nv(S.goal.value, 1)} de ${nv(S.goal.target, 1)} ${S.goal.unit} nesta semana</span><button class="icon-btn" style="background:radial-gradient(circle at 35% 30%,#FFB07A,#FF7426);color:#fff" aria-label="Começar pedal" data-push="runLive" data-params='{"id":"ciclismo"}'>${icon('arrow', 20, 2)}</button></div></div></div>
+  <div class="pad"><div class="wgrid">
+   <div><div class="ax-card" style="margin-top:18px" data-e="4"><div class="between"><div class="row"><span class="fp-ic">${icon('chart', 18)}</span><div><div class="h3">Meta da semana</div><div class="wmute small">${S.goal.unit === 'km' ? 'Quilômetros pedalados' : 'Pedais concluídos'}</div></div></div><button class="link" data-goal>Editar</button></div>
+      <div style="position:relative;width:260px;height:150px;margin:18px auto 0"><svg viewBox="0 0 260 150" width="260" height="150" aria-hidden="true"><path d="M20 140 A110 110 0 0 1 240 140" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="22" stroke-linecap="round" stroke-dasharray="4 6"/>${S.goal.p > 0 ? `<path d="${arcPath(130, 140, 110, Math.PI, Math.PI + Math.PI * S.goal.p)}" fill="none" stroke="#FF7426" stroke-width="22" stroke-linecap="round" data-draw="1600"/>` : ''}</svg>
+        <div style="position:absolute;left:0;right:0;bottom:6px;text-align:center"><div class="num" style="font-size:46px;line-height:1"><span data-count="${Math.round(S.goal.p * 100)}">0</span>%</div><div class="wmute small">${nv(S.goal.value, 1)} / ${nv(S.goal.target, 1)} ${S.goal.unit}</div></div></div>
+      <div class="grid2" style="margin-top:14px">${[['speed', 'Vel. média', fmt(spd, 1), 'km/h'], ['clock', 'Tempo', hms(S.week.reduce((s, a) => s + (a.duration || 0), 0)), 'semana']].map(t => `<div class="ax-card" style="padding:14px;border-radius:24px"><div class="row" style="gap:8px"><span class="fp-ic" style="color:#FF7426">${icon(t[0], 16)}</span><span class="h3">${t[1]}</span></div><div class="num" style="font-size:24px;margin-top:10px">${t[2]} <span class="small wmute">${t[3]}</span></div></div>`).join('')}</div></div>
+    ${L ? `<div class="ax-card" style="margin-top:12px;padding:0;overflow:hidden;height:${L.route && L.route.length > 1 ? 300 : 170}px;position:relative">${L.route && L.route.length > 1 ? routeSVG(L.route, { color: '#FF7426' }) : `<img src="${photo('ciclismo', 1)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(2px) brightness(.6)">`}
+      <div style="position:absolute;left:18px;top:16px" class="row"><span class="fp-ic">${icon('bike', 18)}</span><div><div class="h3">${esc(L.title || 'Último pedal')}</div><div class="small" style="opacity:.8">${shortDate(L.startedAt)}</div></div></div>
+      <div class="ax-card" style="position:absolute;left:12px;right:12px;bottom:12px;padding:10px 14px;border-radius:999px;display:flex;justify-content:space-around;text-align:center"><div><div class="num" style="font-size:18px">${fmt((L.distance || 0) / 1000, 1)}</div><div class="wmute" style="font-size:10px">km</div></div><div><div class="num" style="font-size:18px">${hms(L.duration)}</div><div class="wmute" style="font-size:10px">duração</div></div><div><div class="num" style="font-size:18px">${fmt((L.distance || 0) / Math.max(1, L.duration) * 3.6, 1)}</div><div class="wmute" style="font-size:10px">km/h</div></div></div></div>`
+      : `<div class="ax-card" style="margin-top:12px;text-align:center;padding:26px"><div class="h3">Nenhum pedal ainda</div><p class="wmute small" style="margin:8px 0 0">Grave com GPS ou adicione manualmente.</p><button class="btn btn-ghost btn-sm" style="margin-top:12px" data-push="manualAct" data-params='{"id":"ciclismo"}'>Adicionar manual</button></div>`}</div>
+   <div><div class="wsec"><h2>Distância</h2></div>${chartCard('ax-card')}<div class="wsec"><h2>Recordes</h2></div>${recList(S, 'ax-card')}</div></div></div>`; };
 
-/* ================= 4. Calistenia — preto neon (ref. verde neon) ================= */
-WORLD.calistenia = sp => `
-  <div style="position:absolute;left:0;right:0;top:0;height:420px;background:radial-gradient(90% 70% at 30% 0%,rgba(163,255,18,.22),transparent 70%);pointer-events:none"></div>
-  <div class="pad" style="padding-top:calc(var(--safe-top) + 70px);position:relative">
-    <div class="between" data-e="0"><div class="row">${Photos.url('avatar') ? `<img src="${Photos.url('avatar')}" class="av" alt="" style="object-fit:cover">` : meAv()}<div><div class="h3" style="font-size:17px">Olá, ${esc(firstName())}</div><div class="wmute small">Pronto pra barra?</div></div></div><div class="row" style="gap:8px"><span class="icon-btn" style="background:#141614">${icon('bell', 19)}</span><span class="icon-btn" style="background:#141614">${icon('flame', 19)}</span></div></div>
-    <div class="nn-pill" style="margin-top:20px" data-e="1"><span style="width:56px;height:56px;border-radius:50%;background:#0B1406;color:#A3FF12;display:grid;place-items:center;flex:none">${icon('trophy', 24)}</span><div style="flex:1"><div class="h3" style="font-size:17px">Novo desafio</div><div class="small">2 semanas de controle</div></div><button class="btn btn-sm" style="background:#fff;color:#06140A" data-push="challenge" data-params='{"id":"c4"}'>Entrar</button></div>
-    <div class="row" style="margin-top:22px;gap:2px" data-e="2">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d, i) => `<div class="nn-day ${[1, 3, 5].includes(i) ? 'done' : ''} ${i === 3 ? 'today' : ''}"><span>${d}</span><b>${12 + i}</b></div>`).join('')}</div>
-    <div class="row" style="gap:8px;margin-top:20px;overflow-x:auto;scrollbar-width:none" data-e="3"><button class="nn-chip on">${icon('bolt', 16)}Aquecimento</button><button class="nn-chip">${icon('heartbeat', 16)}Core</button><button class="nn-chip">${icon('rings', 16)}Força</button><button class="nn-chip">${icon('spark', 16)}Mobilidade</button></div>
-    <div class="hscroll" style="margin-top:14px" data-e="4">${[['calistenia', 'Barra & argolas', 15], ['calistenia-2', 'Paralelas', 10], ['calistenia-3', 'Equilíbrio', 15]].map(c => `<button class="press" style="position:relative;width:150px;height:190px;border-radius:24px;overflow:hidden;text-align:left" data-push="genericLive" data-params='{"id":"calistenia","p":0}'><img src="${pimg(c[0], true)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><span style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(0,0,0,.85))"></span><span style="position:absolute;left:12px;bottom:12px;color:#fff"><b style="font-size:14px">${c[1]}</b><br><span class="small" style="opacity:.8">${icon('clock', 12, 2, 'style="display:inline;vertical-align:-2px"')} ${c[2]} min</span></span></button>`).join('')}</div>
-    <div class="wsec" data-e="5"><h2>Atividade recente</h2>${icon('filter', 20)}</div>
-    <div class="stack" data-e="6">${[['rings', 'Barra fixa', 'Hoje às 07:20', '18', 'reps', '#A3FF12'], ['heartbeat', 'Core & L-sit', 'Ontem às 19:00', '28', 's', '#FF4D5E']].map(r => `<div class="nn-card row" style="border-radius:999px;padding:10px 20px 10px 10px"><span style="width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,${r[5]},color-mix(in oklab,${r[5]} 50%,#000));color:#06140A">${icon(r[0], 24)}</span><div style="flex:1"><div class="h3">${r[1]}</div><div class="wmute small">${r[2]}</div></div><div style="text-align:right"><div class="num" style="font-size:24px">${r[3]}</div><div class="wmute small">/${r[4]}</div></div></div>`).join('')}</div>
-    <div class="wsec"><h2>Guia da habilidade</h2><span class="demo-badge">prévia</span></div>
-    <div class="nn-card" style="padding:0;overflow:hidden"><div style="position:relative;height:250px"><img src="${pimg('calistenia')}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 25%"><span style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1),rgba(0,0,0,.6))"></span>
-      <button class="icon-btn" style="position:absolute;left:50%;top:50%;margin:-28px;width:56px;height:56px;background:rgba(255,255,255,.2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)" aria-label="Abrir guia" data-push="genericLive" data-params='{"id":"calistenia","p":0}'>${icon('play', 22)}</button>
-      <div style="position:absolute;left:14px;right:14px;bottom:12px"><div class="row" style="gap:10px;font-size:12px">${icon('play', 14)}<span>0:00 / 5:40</span></div><div style="height:4px;border-radius:4px;background:rgba(255,255,255,.3);margin-top:8px"><i style="display:block;width:38%;height:100%;border-radius:4px;background:#fff"></i></div></div></div>
-      <div style="padding:16px"><div class="between"><div><div class="h2" style="font-size:20px">Muscle-up</div><div class="small" style="color:#A3FF12;margin-top:4px">${icon('rings', 13, 2, 'style="display:inline;vertical-align:-2px"')} Transição na barra</div></div><span class="nn-chip" style="height:34px">${icon('timer', 15)}15 min</span></div>
-      <p class="wmute small" style="line-height:1.6;margin:12px 0 0">Pegada falsa, puxada explosiva até o peito e transição rápida dos punhos por cima da barra.</p></div></div>
-    <div class="wsec"><h2>Meu progresso</h2><span class="num" style="color:#A3FF12;font-size:22px">18 reps</span></div>${chartCard('nn-card')}
-    <div class="wsec"><h2>Árvore de habilidades</h2><span class="wmute small">${SKILLS.filter(s => s[1]).length}/${SKILLS.length}</span></div>
-    <div class="stack" style="gap:8px">${SKILLS.slice(4, 11).map(([n, u], i) => { const next = !u && SKILLS.slice(4, 11).findIndex(s => !s[1]) === i; return `<div class="skill-node ${u ? 'unlocked' : next ? 'next' : 'locked'}" style="background:#111311"><span class="lv" style="${u ? '' : 'background:rgba(255,255,255,.06)'}">${u ? icon('check', 18, 2.6) : icon(next ? 'bolt' : 'lock', 16)}</span><div style="flex:1"><div class="h3">${n}</div><div class="wmute small">${u ? 'Desbloqueada' : next ? 'Próxima — 55%' : 'Bloqueada'}</div></div></div>`; }).join('')}</div>
-  </div>`;
+/* 4. Calistenia — preto neon */
+WORLD.calistenia = (sp, S) => { const w0 = startOfWeek(Date.now()); const days = new Set(S.list.filter(a => a.startedAt >= w0).map(a => dkey(a.startedAt))); const today = dkey(Date.now()); const skills = new Set(API.me.skills || []);
+  return `<div style="position:absolute;left:0;right:0;top:0;height:420px;background:radial-gradient(90% 70% at 30% 0%,rgba(163,255,18,.22),transparent 70%);pointer-events:none"></div>
+  <div class="pad" style="padding-top:calc(var(--safe-top) + 70px);position:relative"><div class="wgrid"><div>
+    <div class="between" data-e="0"><div class="row">${meAv()}<div><div class="h3" style="font-size:17px">Olá, ${esc(firstName())}</div><div class="wmute small">${S.weekCount ? `${S.weekCount} ${S.weekCount > 1 ? 'sessões' : 'sessão'} nesta semana` : 'Pronto pra barra?'}</div></div></div></div>
+    <div class="nn-pill" style="margin-top:20px" data-e="1"><span style="width:56px;height:56px;border-radius:50%;background:#0B1406;color:#A3FF12;display:grid;place-items:center;flex:none">${icon('trophy', 24)}</span><div style="flex:1"><div class="h3" style="font-size:16px">Meta da semana</div><div class="small">${nv(S.goal.value, 1)} de ${nv(S.goal.target, 1)} ${S.goal.unit}</div></div><button class="btn btn-sm" style="background:#fff;color:#06140A" data-goal>Editar</button></div>
+    <div class="row" style="margin-top:22px;gap:2px" data-e="2">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d, i) => { const k = dkey(w0 + i * DAY); return `<div class="nn-day ${days.has(k) ? 'done' : ''} ${k === today ? 'today' : ''}"><span>${d}</span><b>${new Date(w0 + i * DAY).getDate()}</b></div>`; }).join('')}</div>
+    <div class="wsec" data-e="3"><h2>Sessões rápidas</h2></div>
+    <div class="hscroll" data-e="4">${[['calistenia', 'Barra & paralelas', ['Barra fixa', 'Paralelas', 'Flexão de braço']], ['calistenia-2', 'Empurrar', ['Paralelas', 'Pike push-up', 'Flexão de braço']], ['calistenia-3', 'Core & equilíbrio', ['L-sit (s)', 'Hollow hold (s)', 'Prancha (s)']]].map(c => `<button class="press" style="position:relative;width:150px;height:190px;border-radius:24px;overflow:hidden;text-align:left" data-push="genericLive" data-params='${JSON.stringify({ id: 'calistenia', preset: c[2] })}'><img src="${pimg(c[0], true)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><span style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(0,0,0,.85))"></span><span style="position:absolute;left:12px;bottom:12px;right:12px;color:#fff"><b style="font-size:14px">${c[1]}</b><br><span class="small" style="opacity:.8">${c[2].length} blocos</span></span></button>`).join('')}</div>
+    <div class="wsec"><h2>Repetições</h2><span class="num" style="color:#A3FF12;font-size:20px">${nv(S.weekTotal)} na semana</span></div>${chartCard('nn-card')}</div>
+   <div><div class="wsec"><h2>Árvore de habilidades</h2><span class="wmute small">${skills.size}/${SKILLS.length} · toque para marcar</span></div>
+    <div class="stack" style="gap:8px">${SKILLS.map(n => `<button class="skill-node ${skills.has(n) ? 'unlocked' : ''}" style="background:#111311;text-align:left;width:100%" data-skill="${esc(n)}" aria-pressed="${skills.has(n)}"><span class="lv" style="${skills.has(n) ? '' : 'background:rgba(255,255,255,.06)'}">${skills.has(n) ? icon('check', 18, 2.6) : icon('lock', 16)}</span><div style="flex:1"><div class="h3">${esc(n)}</div><div class="wmute small">${skills.has(n) ? 'Dominada' : 'Ainda não'}</div></div></button>`).join('')}</div>
+    <div class="wsec"><h2>Recordes por exercício</h2></div>${recList(S, 'nn-card')}</div></div></div>`; };
 
-/* ================= 5. Futebol — dia de jogo ================= */
-WORLD.futebol = sp => `
-  <div class="w-hero" style="height:640px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('futebol', 'futebol', { eager: true, grade: false, fade: 'background:linear-gradient(180deg,rgba(6,18,11,.55),transparent 28%,transparent 45%,rgba(6,18,11,.92) 78%,#06120B)' })}</div>
-    <div style="position:absolute;left:20px;right:20px;top:calc(var(--safe-top) + 76px)"><div class="kicker" style="color:#FFC23D" data-e="1">Próximo jogo · Qui 20h · Society</div><h1 class="w-title" style="font-family:var(--display);font-weight:800;font-size:52px;line-height:.95;margin:10px 0 0;letter-spacing:-.05em">Dia de jogo</h1></div>
-    <div style="position:absolute;left:14px;right:14px;bottom:16px" class="fb-card" data-e="2"><div class="between"><span class="kicker">Último jogo</span><span class="tag" style="color:#A3FF12">Vitória</span></div>
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin:12px 0 6px;text-align:center"><div><div class="h3">Liga dos Amigos</div><div class="wmute small">Você</div></div><div class="num" style="font-size:52px;color:#FFC23D;letter-spacing:-.05em">3 <span style="opacity:.5">:</span> 2</div><div><div class="h3">Rivais FC</div><div class="wmute small">Visitante</div></div></div>
-      <div class="wmute small" style="text-align:center">Seus números: 1 gol · 2 assistências · nota 8,1</div></div></div>
-  <div class="pad">
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);margin-top:20px" data-e="3">${[['23', 'Partidas'], ['14', 'Gols'], ['9', 'Assist.'], ['7,8', 'Nota média']].map(x => `<div><div class="num" style="font-size:28px;color:#FFC23D"><span data-count="${x[0].replace(',', '.')}" data-dec="${x[0].includes(',') ? 1 : 0}">0</span></div><div class="wmute" style="font-size:11px">${x[1]}</div></div>`).join('')}</div>
-    <div class="wsec" data-e="4"><h2>Mapa de calor</h2><span class="wmute small">últimos 5 jogos</span></div>
-    <div class="fb-card" style="padding:12px" data-e="5"><svg viewBox="0 0 340 210" style="width:100%;height:auto;border-radius:16px;background:linear-gradient(90deg,#0E3A1E,#0B2F18 50%,#0E3A1E)" aria-hidden="true"><defs><radialGradient id="hm"><stop offset="0" stop-color="#FF4D2E" stop-opacity=".9"/><stop offset=".5" stop-color="#FFC23D" stop-opacity=".5"/><stop offset="1" stop-color="#FFC23D" stop-opacity="0"/></radialGradient></defs>
-      ${[[230, 80, 60], [260, 130, 46], [190, 110, 40], [290, 95, 30]].map(b => `<circle cx="${b[0]}" cy="${b[1]}" r="${b[2]}" fill="url(#hm)"/>`).join('')}
-      <g fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.5"><rect x="8" y="8" width="324" height="194" rx="4"/><line x1="170" y1="8" x2="170" y2="202"/><circle cx="170" cy="105" r="30"/><rect x="8" y="55" width="46" height="100"/><rect x="286" y="55" width="46" height="100"/><rect x="8" y="80" width="16" height="50"/><rect x="316" y="80" width="16" height="50"/></g></svg>
-      <div class="between small wmute" style="margin-top:8px"><span>Defesa</span><span>Você atua mais pela direita no ataque</span><span>Ataque</span></div></div>
-    <div class="wsec"><h2>Últimas partidas</h2></div>
-    <div class="stack">${[['Pelada de quinta', '7 × 5', 'V', '2 G · 1 A'], ['Society — Liga dos Amigos', '3 × 4', 'D', '1 A'], ['Campo — Amistoso', '2 × 2', 'E', '1 G']].map(m => `<div class="fb-card row"><span style="width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-family:var(--display);font-weight:700;background:${m[2] === 'V' ? 'rgba(163,255,18,.15);color:#A3FF12' : m[2] === 'D' ? 'rgba(255,77,94,.15);color:#FF4D5E' : 'rgba(255,255,255,.08);color:#ccc'}">${m[2]}</span><div style="flex:1"><div class="h3">${m[0]}</div><div class="wmute small">Placar ${m[1]} · ${m[3]}</div></div></div>`).join('')}</div>
-    <div class="wsec"><h2>Seu time</h2><button class="link" data-wtoast="Convocação enviada (prévia)">Convocar</button></div>
-    <div class="fb-card row"><div class="av-stack">${['luana', 'caio', 'rafa', 'gui', 'theo'].map(p => av(p, 'sm')).join('')}</div><div style="flex:1"><div class="h3">Liga dos Amigos</div><div class="wmute small">10 jogadores · 3º lugar</div></div>${icon('next', 18)}</div>
-    <div class="fb-card" style="margin-top:12px;padding:0;overflow:hidden;height:180px;position:relative"><img src="${photo('futebol', 1)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><span style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,18,11,.95),rgba(6,18,11,.2))"></span>
-      <div style="position:absolute;left:18px;top:18px;right:120px"><div class="kicker" style="color:#FFC23D">Meta da temporada</div><div class="h2" style="margin-top:8px">20 gols</div><div class="num" style="font-size:34px;margin-top:6px">14<span class="small wmute"> / 20</span></div><div class="bar" style="margin-top:8px"><i data-bar=".7" style="transform:scaleX(0);background:#FFC23D;box-shadow:none"></i></div></div></div>
-  </div>`;
+/* 5. Futebol — dia de jogo */
+WORLD.futebol = (sp, S) => { const X = S.extra; const L = S.last;
+  return `<div class="w-hero" style="height:640px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('futebol', 'futebol', { eager: true, grade: false, fade: 'background:linear-gradient(180deg,rgba(6,18,11,.55),transparent 28%,transparent 45%,rgba(6,18,11,.92) 78%,#06120B)' })}</div>
+    <div class="w-hero-in" style="position:absolute;left:20px;right:20px;top:calc(var(--safe-top) + 76px)"><div class="kicker" style="color:#FFC23D" data-e="1">${S.count} ${S.count === 1 ? 'partida registrada' : 'partidas registradas'}</div><h1 class="w-title" style="font-family:var(--display);font-weight:800;font-size:52px;line-height:.95;margin:10px 0 0;letter-spacing:-.05em">Dia de jogo</h1></div>
+    <div class="w-hero-in fb-card" style="position:absolute;left:14px;right:14px;bottom:16px" data-e="2">${L ? `<div class="between"><span class="kicker">Último jogo · ${shortDate(L.startedAt)}</span><span class="tag" style="color:${L.scoreFor > L.scoreAgainst ? '#A3FF12' : L.scoreFor < L.scoreAgainst ? '#FF6B76' : '#ddd'}">${L.scoreFor > L.scoreAgainst ? 'Vitória' : L.scoreFor < L.scoreAgainst ? 'Derrota' : 'Empate'}</span></div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin:12px 0 6px;text-align:center"><div><div class="h3">${esc(L.team || 'Meu time')}</div></div><div class="num" style="font-size:52px;color:#FFC23D;letter-spacing:-.05em">${L.scoreFor ?? 0} <span style="opacity:.5">:</span> ${L.scoreAgainst ?? 0}</div><div><div class="h3">${esc(L.opponent || 'Adversário')}</div></div></div>
+      <div class="wmute small" style="text-align:center">Seus números: ${L.goals || 0} ${L.goals === 1 ? 'gol' : 'gols'} · ${L.assists || 0} ${L.assists === 1 ? 'assistência' : 'assistências'}</div>` : `<div style="text-align:center;padding:8px"><div class="h3">Nenhuma partida ainda</div><p class="wmute small" style="margin:6px 0 0">Registre placar, gols e assistências a cada jogo.</p></div>`}</div></div>
+  <div class="pad"><div class="wgrid"><div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);margin-top:20px" data-e="3">${[[S.count, 'Partidas'], [X.goals, 'Gols'], [X.assists, 'Assist.'], [X.w, 'Vitórias']].map(x => `<div><div class="num" style="font-size:28px;color:#FFC23D"><span data-count="${x[0]}">0</span></div><div class="wmute" style="font-size:11px">${x[1]}</div></div>`).join('')}</div>
+    <div class="wsec"><h2>Resultados</h2><span class="wmute small">${X.w}V · ${X.d}E · ${X.l}D</span></div>
+    <div class="fb-card">${S.count ? `<div style="display:flex;height:14px;border-radius:8px;overflow:hidden;gap:3px">${[[X.w, '#A3FF12'], [X.d, '#8a8a8a'], [X.l, '#FF4D5E']].filter(x => x[0]).map(x => `<i style="flex:${x[0]};background:${x[1]}"></i>`).join('')}</div><div class="between small wmute" style="margin-top:10px"><span>Aproveitamento</span><b style="color:#fff">${Math.round((X.w * 3 + X.d) / Math.max(1, S.count * 3) * 100)}%</b></div>` : '<div class="wmute small">Os resultados aparecem depois da primeira partida.</div>'}</div>
+    <div class="wsec"><h2>Meta da semana</h2><button class="link" data-goal>Editar</button></div>
+    <div class="fb-card" style="padding:0;overflow:hidden;height:170px;position:relative"><img src="${photo('futebol', 1)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><span style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,18,11,.95),rgba(6,18,11,.25))"></span>
+      <div style="position:absolute;left:18px;top:18px;right:110px"><div class="kicker" style="color:#FFC23D">${S.goal.unit}</div><div class="num" style="font-size:34px;margin-top:8px">${nv(S.goal.value, 1)}<span class="small wmute"> / ${nv(S.goal.target, 1)}</span></div><div class="bar" style="margin-top:10px"><i data-bar="${S.goal.p}" style="transform:scaleX(0);background:#FFC23D;box-shadow:none"></i></div></div></div></div>
+   <div><div class="wsec"><h2>Gols + assistências</h2></div>${chartCard('fb-card')}<div class="wsec"><h2>Recordes</h2></div>${recList(S, 'fb-card')}</div></div></div>`; };
 
-/* ================= 6. Natação — editorial aqua (ref. Tenneox) ================= */
-WORLD.natacao = sp => `
-  <div class="w-hero" style="height:660px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('natacao', 'natacao', { eager: true, grade: false, fade: 'background:linear-gradient(180deg,rgba(10,44,87,.75),rgba(10,44,87,.15) 35%,transparent 55%,rgba(10,44,87,.7) 85%,#0A2C57)' })}</div>
-    <div style="position:absolute;left:22px;right:22px;top:calc(var(--safe-top) + 74px)"><h1 class="w-title" style="font-family:var(--display);font-weight:800;font-size:42px;line-height:.98;margin:0;color:rgba(255,255,255,.62);letter-spacing:-.04em;text-transform:uppercase">Deslize mais longe</h1><div class="small" style="color:rgba(255,255,255,.7);margin-top:8px" data-e="1">Seu companheiro de piscina</div></div>
-    <div class="tx-tilt" style="position:absolute;left:16px;bottom:120px;width:170px;transform:rotate(-9deg)" data-e="2"><span class="fp-ic" style="position:absolute;right:10px;top:-14px;background:rgba(255,255,255,.6);color:#0A2C57">${icon('swim', 18)}</span><div class="num" style="font-size:40px;color:#06213F">256</div><div style="font-size:14px;color:#0A2C57;font-weight:600">Voltas no mês</div></div>
-    <div class="tx-tilt" style="position:absolute;right:16px;bottom:110px;width:160px" data-e="3"><span class="fp-ic" style="position:absolute;right:10px;top:-14px;background:rgba(255,255,255,.6);color:#0A2C57">${icon('timer', 18)}</span><div class="num" style="font-size:40px;color:#fff">1:31</div><div style="font-size:14px;color:#fff;font-weight:600">Melhor 100 m</div></div>
-    <div style="position:absolute;left:20px;right:20px;bottom:24px;display:grid;grid-template-columns:repeat(4,1fr)" data-e="4">${[['#4', 'Ranking'], ['6,4', 'km no mês'], ['92%', 'Constância'], ['18', 'Treinos']].map(x => `<div><div class="num" style="font-size:26px;font-style:italic">${x[0]}</div><div style="font-size:11px;opacity:.8">${x[1]}</div></div>`).join('')}</div></div>
-  <div class="pad">
-    <div class="tx-white" style="margin-top:6px" data-e="5"><div class="between"><div class="h2" style="font-size:20px">Ritmo por 100 m</div><span class="small" style="color:#4A6587">Últimos 30 dias</span></div>
-      <div style="height:8px;border-radius:8px;background:#DCE6F2;margin:18px 0 12px;overflow:hidden"><i data-bar=".86" style="display:block;height:100%;background:#0A2C57;transform-origin:left;transform:scaleX(0)"></i></div>
-      <div class="row" style="gap:10px;align-items:baseline"><span class="num" style="font-size:40px;font-style:italic">1:38</span><span class="small" style="color:#4A6587">média · 6 s mais rápido que outubro</span></div>
-      <button class="btn btn-block" style="background:#0A2C57;color:#fff;margin-top:16px" data-push="challenge" data-params='{"id":"c5"}'>${icon('trophy', 18)}Ver ranking da piscina</button>
-      <div class="grid2" style="margin-top:14px">${['natacao-2', 'natacao-3'].map(n => `<img src="${pimg(n, true)}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:22px">`).join('')}</div></div>
-    <div class="wsec"><h2>Estilos no mês</h2></div>
-    <div class="tx-white stack" style="gap:14px">${[['Livre', .62], ['Costas', .18], ['Peito', .12], ['Borboleta', .08]].map(([n, v], i) => `<div><div class="between small"><b>${n}</b><span style="color:#4A6587">${Math.round(v * 100)}%</span></div><div style="height:6px;border-radius:6px;background:#DCE6F2;margin-top:7px;overflow:hidden"><i data-bar="${v}" data-delay="${i * 100}" style="display:block;height:100%;background:#1B6FB0;transform-origin:left;transform:scaleX(0)"></i></div></div>`).join('')}</div>
-    <div class="wsec"><h2>Distância</h2></div>${chartCard('card', 'background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15)')}
-    <div class="wsec"><h2>Recordes</h2></div><div class="stack">${sp.records.map(r => `<div class="list-item" style="background:rgba(255,255,255,.07)"><span class="ico">${icon('medal', 20)}</span><div style="flex:1"><div class="h3">${r.k}</div><div class="wmute small">${r.d}</div></div><span class="num" style="font-size:18px;font-style:italic">${r.v}</span></div>`).join('')}</div>
-  </div>`;
+/* 6. Natação — aqua editorial */
+WORLD.natacao = (sp, S) => { const month = S.month; const laps = month.reduce((s, a) => s + (a.laps || 0), 0); const best = S.records.find(r => r.k.startsWith('Melhor ritmo'));
+  const recent = S.list.filter(a => a.startedAt > Date.now() - 30 * DAY && a.distance > 0); const avg = recent.length ? recent.reduce((s, a) => s + a.duration, 0) / recent.reduce((s, a) => s + a.distance, 0) * 100 : 0;
+  return `<div class="w-hero" style="height:660px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('natacao', 'natacao', { eager: true, grade: false, fade: 'background:linear-gradient(180deg,rgba(10,44,87,.75),rgba(10,44,87,.15) 35%,transparent 55%,rgba(10,44,87,.7) 85%,#0A2C57)' })}</div>
+    <div class="w-hero-in" style="position:absolute;left:22px;right:22px;top:calc(var(--safe-top) + 74px)"><h1 class="w-title" style="font-family:var(--display);font-weight:800;font-size:42px;line-height:.98;margin:0;color:rgba(255,255,255,.62);letter-spacing:-.04em;text-transform:uppercase">Deslize mais longe</h1></div>
+    <div class="tx-tilt" style="position:absolute;left:16px;bottom:120px;width:170px;transform:rotate(-9deg)" data-e="2"><div class="num" style="font-size:40px;color:#06213F">${laps}</div><div style="font-size:14px;color:#0A2C57;font-weight:600">Voltas no mês</div></div>
+    <div class="tx-tilt" style="position:absolute;right:16px;bottom:110px;width:160px" data-e="3"><div class="num" style="font-size:36px;color:#fff">${best ? best.v : '—'}</div><div style="font-size:14px;color:#fff;font-weight:600">Melhor 100 m</div></div>
+    <div class="w-hero-in" style="position:absolute;left:20px;right:20px;bottom:24px;display:grid;grid-template-columns:repeat(4,1fr)" data-e="4">${[[fmt(S.monthTotal, 2), 'km no mês'], [S.weekCount, 'treinos/sem.'], [fmt(S.total, 1), 'km total'], [Stats.streak(API.acts), 'dias seguidos']].map(x => `<div><div class="num" style="font-size:24px;font-style:italic">${x[0]}</div><div style="font-size:11px;opacity:.8">${x[1]}</div></div>`).join('')}</div></div>
+  <div class="pad"><div class="wgrid"><div>
+    <div class="tx-white" style="margin-top:6px" data-e="5"><div class="between"><div class="h2" style="font-size:20px">Ritmo médio por 100 m</div><span class="small" style="color:#4A6587">Últimos 30 dias</span></div>
+      <div class="row" style="gap:10px;align-items:baseline;margin-top:12px"><span class="num" style="font-size:40px;font-style:italic">${avg ? hms(avg) : '—'}</span><span class="small" style="color:#4A6587">${recent.length} ${recent.length === 1 ? 'treino' : 'treinos'}</span></div>
+      <div class="between small" style="margin-top:14px"><b>Meta da semana</b><button style="color:#1B6FB0;font-weight:700" data-goal>Editar</button></div>
+      <div style="height:8px;border-radius:8px;background:#DCE6F2;margin:8px 0 4px;overflow:hidden"><i data-bar="${S.goal.p}" style="display:block;height:100%;background:#0A2C57;transform-origin:left;transform:scaleX(0)"></i></div><div class="small" style="color:#4A6587">${nv(S.goal.value, 2)} de ${nv(S.goal.target, 1)} ${S.goal.unit}</div>
+      <div class="grid2" style="margin-top:14px">${['natacao-2', 'natacao-3'].map(n => `<img src="${pimg(n, true)}" alt="" style="width:100%;height:130px;object-fit:cover;border-radius:22px">`).join('')}</div></div>
+    <div class="wsec"><h2>Estilos</h2></div><div class="tx-white stack" style="gap:14px">${S.extra.strokes.length ? S.extra.strokes.map(([n, v], i) => `<div><div class="between small"><b>${n}</b><span style="color:#4A6587">${Math.round(v * 100)}%</span></div><div style="height:6px;border-radius:6px;background:#DCE6F2;margin-top:7px;overflow:hidden"><i data-bar="${v}" data-delay="${i * 100}" style="display:block;height:100%;background:#1B6FB0;transform-origin:left;transform:scaleX(0)"></i></div></div>`).join('') : '<div class="small" style="color:#4A6587">A divisão por estilo aparece depois do primeiro treino.</div>'}</div></div>
+   <div><div class="wsec"><h2>Distância</h2></div>${chartCard('card', 'background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15)')}<div class="wsec"><h2>Recordes</h2></div>${recList(S, 'list-item', 'background:rgba(255,255,255,.07);')}</div></div></div>`; };
 
-/* ================= 7. Boxe — fight night ================= */
-WORLD.boxe = sp => `
-  <div class="w-hero" style="height:640px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('boxe', 'boxe', { eager: true, grade: false, fade: 'background:linear-gradient(180deg,rgba(11,5,6,.55),transparent 28%,transparent 45%,rgba(11,5,6,.92) 78%,#0B0506)' })}</div>
-    <div class="outline-num" style="position:absolute;right:-10px;top:120px;font-size:230px" aria-hidden="true">12</div>
-    <div style="position:absolute;left:20px;right:20px;bottom:26px"><div class="kicker" style="color:#FF3B4E" data-e="1">Sessão de hoje · 8 rounds</div><h1 class="w-title" style="font-family:var(--display);font-weight:800;font-size:54px;line-height:.92;margin:10px 0 14px;letter-spacing:-.05em">Guarda alta</h1>
-      <div class="row" style="gap:6px" data-e="3">${Array.from({ length: 12 }, (_, i) => `<span class="bx-seg ${i < 7 ? 'done' : i === 7 ? 'cur' : ''}"></span>`).join('')}</div><div class="between wmute small" style="margin-top:8px"><span>R1</span><span>7 de 12 rounds na semana</span><span>R12</span></div></div></div>
-  <div class="pad">
-    <div class="grid3" style="margin-top:10px" data-e="4">${[['486', 'Jabs', .9], ['312', 'Diretos', .64], ['158', 'Ganchos', .35]].map((x, i) => `<div class="bx-card"><div class="num" style="font-size:28px"><span data-count="${x[0]}">0</span></div><div class="wmute small">${x[1]}</div><div style="height:4px;border-radius:4px;background:rgba(255,255,255,.08);margin-top:10px;overflow:hidden"><i data-bar="${x[2]}" data-delay="${i * 120}" style="display:block;height:100%;background:#FF3B4E;transform-origin:left;transform:scaleX(0)"></i></div></div>`).join('')}</div>
-    <div class="bx-card" style="margin-top:12px" data-e="5"><div class="between"><div class="h3">Intensidade média</div><span class="tag" style="color:#FF3B4E">semana</span></div><div class="w-gauge" style="margin-top:8px">${gauge(.82, { w: 280, color: '#FF3B4E', label: 'Intensidade' })}</div></div>
-    <div class="wsec" data-e="6"><h2>Combinações do dia</h2></div>
-    <div class="stack" style="gap:8px" data-e="7">${[['1-2', 'Jab · Direto'], ['1-1-2', 'Jab duplo · Direto'], ['1-2-3', 'Jab · Direto · Gancho'], ['1-esq-2', 'Jab · Esquiva · Direto']].map((c, i) => `<div class="bx-card row" style="padding:12px 16px"><span class="num" style="font-size:20px;color:#FF3B4E;width:84px;white-space:nowrap">${c[0]}</span><span style="flex:1">${c[1]}</span><span class="wmute small">R${i + 1}</span></div>`).join('')}</div>
-    <div class="bx-card" style="margin-top:12px;padding:0;overflow:hidden;height:220px;position:relative"><img src="${photo('boxe', 1)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.1)"><span style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,5,6,.95) 35%,rgba(120,10,20,.35))"></span>
-      <div style="position:absolute;left:18px;top:18px;right:18px"><div class="kicker" style="color:#FF3B4E">Notas do treinador</div><div class="row" style="gap:12px;margin-top:14px">${[['Jab', .82], ['Direto', .74], ['Esquiva', .61]].map((t, i) => `<div style="text-align:center">${ring(t[1], { size: 56, sw: 5, color: '#FF3B4E', delay: i * 120, inner: `<span class="num" style="font-size:14px">${Math.round(t[1] * 100)}</span>` })}<div class="small" style="margin-top:6px">${t[0]}</div></div>`).join('')}</div></div></div>
-    <div class="wsec"><h2>Rounds</h2></div>${chartCard('bx-card')}
-  </div>`;
+/* 7. Boxe — fight night */
+WORLD.boxe = (sp, S) => { const wr = S.week.reduce((s, a) => s + (a.rounds || 0), 0); const segs = Math.min(24, Math.max(6, S.goal.kind === 'metric' ? S.goal.target : 12));
+  return `<div class="w-hero" style="height:640px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('boxe', 'boxe', { eager: true, grade: false, fade: 'background:linear-gradient(180deg,rgba(11,5,6,.55),transparent 28%,transparent 45%,rgba(11,5,6,.92) 78%,#0B0506)' })}</div>
+    <div class="outline-num" style="position:absolute;right:-10px;top:120px;font-size:200px" aria-hidden="true">${wr}</div>
+    <div class="w-hero-in" style="position:absolute;left:20px;right:20px;bottom:26px"><div class="kicker" style="color:#FF3B4E" data-e="1">Rounds nesta semana</div><h1 class="w-title" style="font-family:var(--display);font-weight:800;font-size:54px;line-height:.92;margin:10px 0 14px;letter-spacing:-.05em">Guarda alta</h1>
+      <div class="row" style="gap:5px" data-e="3">${Array.from({ length: segs }, (_, i) => `<span class="bx-seg ${i < Math.round(S.goal.p * segs) ? 'done' : ''}"></span>`).join('')}</div><div class="between wmute small" style="margin-top:8px"><span>${nv(S.goal.value)} ${S.goal.unit}</span><button class="link" data-goal style="padding:0">meta ${nv(S.goal.target)}</button></div></div></div>
+  <div class="pad"><div class="wgrid"><div>
+    <div class="grid3" style="margin-top:10px" data-e="4">${[[wr, 'Rounds/sem.'], [S.weekCount, 'Treinos/sem.'], [S.extra.rounds, 'Rounds total']].map((x, i) => `<div class="bx-card"><div class="num" style="font-size:28px"><span data-count="${x[0]}">0</span></div><div class="wmute small">${x[1]}</div></div>`).join('')}</div>
+    <div class="bx-card" style="margin-top:12px" data-e="5"><div class="between"><div class="h3">Meta da semana</div><span class="tag" style="color:#FF3B4E">${Math.round(S.goal.p * 100)}%</span></div><div class="w-gauge" style="margin-top:8px">${gauge(S.goal.p, { w: 280, color: '#FF3B4E', label: `${nv(S.goal.value)} de ${nv(S.goal.target)} ${S.goal.unit}` })}</div></div>
+    <div class="wsec" data-e="6"><h2>Combinações para treinar</h2></div>
+    <div class="stack" style="gap:8px" data-e="7">${BOX_COMBOS.slice(0, 5).map((c, i) => `<div class="bx-card row" style="padding:12px 16px"><span class="num" style="font-size:18px;color:#FF3B4E;width:40px">${i + 1}</span><span style="flex:1">${c}</span></div>`).join('')}</div></div>
+   <div><div class="wsec"><h2>Rounds</h2></div>${chartCard('bx-card')}<div class="wsec"><h2>Recordes</h2></div>${recList(S, 'bx-card')}</div></div></div>`; };
 
-/* ---------- Misc sheets ---------- */
-function historySheet(id) {
-  const sp = SPORTS[id];
-  const rows = Array.from({ length: 8 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - i * 2 - 1); return [d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }), nextSession(id)[0], sp.metric.W[i % 7] || sp.metric.M[i]]; });
-  Sheet.open(`<div class="between" data-e="0"><h3 class="h2">Histórico de ${sp.name.toLowerCase()}</h3>${demoBadge()}</div><div class="stack" style="margin-top:16px;gap:8px">${rows.map((r, i) => `<div class="list-item" data-e="${1 + i}"><span class="ico">${icon(sp.icon, 20)}</span><div style="flex:1"><div class="h3">${r[1]}</div><div class="muted small">${r[0]}</div></div><span class="num" style="font-size:16px">${fmt(r[2], r[2] % 1 ? 1 : 0)} ${sp.metric.u}</span></div>`).join('')}</div>`, null, { label: 'Histórico' });
+function arcPath(cx, cy, r, a0, a1) { const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1); return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`; }
+
+/* ---------- Notificações ---------- */
+async function refreshNotifDot() { try { const L = await API.notifications(); const n = L.filter(x => !x.read).length; $$('.notif-dot').forEach(d => d.hidden = !n); $$('[data-notif-count]').forEach(d => { d.textContent = n; d.hidden = !n; }); } catch (e) {} }
+async function openNotifications() {
+  const close = Sheet.open(`<h3 class="h2" data-e="0">Notificações</h3><div class="stack nf" style="margin-top:16px;gap:8px"><div class="card skeleton" style="height:60px"></div></div>`, null, { label: 'Notificações' });
+  try { const L = await API.notifications(); const box = $('.sheet-wrap:last-child .nf');
+    const txt = n => n.type === 'like' ? 'curtiu seu post' : n.type === 'comment' ? `comentou: “${esc(n.text || '')}”` : n.type === 'follow' ? 'começou a seguir você' : 'interagiu com você';
+    box.innerHTML = L.length ? L.map(n => `<button class="list-item" style="text-align:left;${n.read ? '' : 'border-color:rgba(227,25,43,.5)'}" data-profile="${n.from}">${avatar({ name: n.fromName, avatar: n.fromAvatar })}<div style="flex:1"><div style="font-size:14px;line-height:1.4"><b>${esc((n.fromName || '').split(' ')[0])}</b> ${txt(n)}</div><div class="muted small" style="margin-top:2px">${ago(n.ts)}</div></div></button>`).join('') : '<p class="muted small">Nada por aqui ainda.</p>';
+    hydrateImages(box); box.addEventListener('click', e => { const b = e.target.closest('[data-profile]'); if (b) { close(); Nav.push('user', { id: b.dataset.profile }); } });
+    API.markNotifsRead(L).then(refreshNotifDot); } catch (x) { toast(errMsg(x), 'x'); }
 }
-function openNotifications() {
-  const items = [['rafa', 'curtiu seu recorde no supino', '2 min'], ['marina', 'te ultrapassou no desafio 100 km em novembro', '18 min'], ['julia', 'convidou você para “Rei da barra”', '1 h'], ['caio', 'comentou: “bora pro sparring sábado?”', '3 h']];
-  Sheet.open(`<h3 class="h2" data-e="0">Notificações</h3><div class="stack" style="margin-top:16px;gap:8px">${items.map((n, i) => `<div class="list-item" data-e="${1 + i}">${av(n[0])}<div style="flex:1"><div style="font-size:14px;line-height:1.4"><b>${PEOPLE[n[0]].n.split(' ')[0]}</b> ${n[1]}</div><div class="muted small" style="margin-top:2px">${n[2]}</div></div></div>`).join('')}</div>`, null, { label: 'Notificações' });
-}
-function shareSheet(title, text) {
+function shareSheet(title, text, url) {
   Sheet.open(`<h3 class="h2" data-e="0">Compartilhar</h3><div class="card" style="margin:16px 0" data-e="1"><div class="h3">${esc(title)}</div><div class="muted small" style="margin-top:6px;line-height:1.5">${esc(text)}</div></div>
-    <div class="grid3" data-e="2">${[['copy', 'Copiar texto'], ['image', 'Story (prévia)'], ['users', 'Enviar a amigos']].map(([ic, l], i) => `<button class="card press" style="padding:14px 10px;text-align:center" data-sh="${i}"><span style="display:grid;place-items:center;color:var(--accent)">${icon(ic, 22)}</span><span class="small" style="display:block;margin-top:8px">${l}</span></button>`).join('')}</div>`,
-    (w, close) => w.addEventListener('click', async e => { const b = e.target.closest('[data-sh]'); if (!b) return;
-      if (b.dataset.sh === '0') { try { await navigator.clipboard.writeText(`${title} — ${text}`); toast('Texto copiado'); } catch (x) { toast('Não foi possível copiar aqui', 'x'); } }
-      else toast(b.dataset.sh === '1' ? 'Exportação para stories é uma prévia' : 'Envio para amigos é uma prévia', 'spark'); close(); }), { label: 'Compartilhar' });
+    <div class="grid2" data-e="2"><button class="btn btn-white" data-sh="copy">${icon('copy', 18)}Copiar</button><button class="btn btn-ghost" data-sh="native">${icon('share', 18)}Enviar</button></div>`,
+    (w, close) => w.addEventListener('click', async e => { const b = e.target.closest('[data-sh]'); if (!b) return; const full = `${title} — ${text}${url ? '\n' + url : ''}`;
+      if (b.dataset.sh === 'native' && navigator.share) { try { await navigator.share({ title, text, url }); close(); return; } catch (x) { return; } }
+      try { await navigator.clipboard.writeText(full); toast('Copiado'); } catch (x) { toast('Não foi possível copiar', 'x'); } close(); }), { label: 'Compartilhar' });
 }

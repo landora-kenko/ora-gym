@@ -264,7 +264,7 @@ document.addEventListener('pointerdown', e => {
 
 /* ---------------- Toast ---------------- */
 function toast(msg, ic = 'check') {
-  const phone = $('.phone'); const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status');
+  const phone = $('#app'); const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status');
   t.innerHTML = `${icon(ic, 18, 2)}<span>${esc(msg)}</span>`; phone.appendChild(t);
   A(t, [{ opacity: 0, transform: 'translate(-50%,-20px) scale(.9)' }, { opacity: 1, transform: 'translate(-50%,0) scale(1)' }], { spring: [200, 18] });
   setTimeout(() => { const a = A(t, [{ opacity: 1 }, { opacity: 0, transform: 'translate(-50%,-14px) scale(.96)' }], { duration: 300, easing: 'in' }); a.finished.then(() => t.remove()); }, 2300);
@@ -273,7 +273,7 @@ function toast(msg, ic = 'check') {
 /* ---------------- Bottom sheet ---------------- */
 const Sheet = {
   open(html, mount, opts = {}) {
-    const phone = $('.phone'); const w = document.createElement('div'); w.className = 'sheet-wrap';
+    const phone = $('#app'); const w = document.createElement('div'); w.className = 'sheet-wrap';
     w.innerHTML = `<div class="sheet-backdrop"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(opts.label || 'Painel')}"><div class="grab"></div><div class="sheet-body">${html}</div></div>`;
     phone.appendChild(w);
     const sh = $('.sheet', w), bd = $('.sheet-backdrop', w);
@@ -287,6 +287,7 @@ const Sheet = {
       A(sh, [{ transform: cur === 'none' ? 'none' : cur }, { transform: 'translateY(105%)' }], { duration: 320, easing: 'in' }).finished.then(() => { w.remove(); opts.onClose && opts.onClose(); });
     };
     bd.addEventListener('click', close);
+    const onKey = e => { if (e.key === 'Escape' && document.body.contains(w) && $$('.sheet-wrap').pop() === w) { e.stopPropagation(); close(); } }; document.addEventListener('keydown', onKey); const _rm = w.remove.bind(w); w.remove = () => { document.removeEventListener('keydown', onKey); _rm(); };
     // drag to dismiss
     const grab = $('.grab', w); let y0 = null, dy = 0;
     const start = e => { if (e.target.closest('.sheet-body') && $('.sheet-body', w).scrollTop > 0) return; if (e.target.closest('input,textarea,button,select,label')) return; y0 = e.clientY; dy = 0; sh.setPointerCapture && sh.setPointerCapture(e.pointerId); };

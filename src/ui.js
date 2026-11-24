@@ -211,4 +211,26 @@ function sportChips(active, attr = 'sport', list = SPORT_IDS) {
     return `<button class="chip ${id === active ? 'on' : ''}" role="tab" aria-selected="${id === active}" data-${attr}="${id}">${icon(s.icon, 16, 1.8)}${s.name}</button>`; }).join('')}</div>`;
 }
 function setAccent(id) { const s = id === 'brand' ? { c: '#E3192B', c2: '#9E0B14' } : SPORTS[id]; if (!s) return; setAccent.cur = id; const r = document.documentElement; r.style.setProperty('--accent', s.c); r.style.setProperty('--accent2', s.c2); }
-const demoBadge = (t = 'Dados demonstrativos') => `<span class="demo-badge">${icon('spark', 12, 2)}${t}</span>`;
+const demoBadge = () => '';
+
+/* ---------- Rota real (lat/lng) desenhada em SVG ---------- */
+function routeSVG(pts, { color = 'var(--accent)', light = false, w = 400, h = 300, pad = 26 } = {}) {
+  if (!pts || pts.length < 2) return '';
+  const lat0 = pts.reduce((s, p) => s + p[0], 0) / pts.length; const kx = Math.cos(lat0 * Math.PI / 180);
+  const xs = pts.map(p => p[1] * kx), ys = pts.map(p => -p[0]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const sc = Math.min((w - pad * 2) / Math.max(1e-9, maxX - minX), (h - pad * 2) / Math.max(1e-9, maxY - minY));
+  const ox = (w - (maxX - minX) * sc) / 2, oy = (h - (maxY - minY) * sc) / 2;
+  const P = xs.map((x, i) => [ox + (x - minX) * sc, oy + (ys[i] - minY) * sc]);
+  const d = 'M' + P.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L');
+  const bg = light ? '#F1F3F2' : '#0B141F', grid = light ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.05)';
+  let g = ''; for (let i = 1; i < 10; i++) g += `<line x1="${i * w / 10}" y1="0" x2="${i * w / 10}" y2="${h}" stroke="${grid}"/>`; for (let i = 1; i < 8; i++) g += `<line x1="0" y1="${i * h / 8}" x2="${w}" y2="${i * h / 8}" stroke="${grid}"/>`;
+  const s = P[0], e = P[P.length - 1];
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;display:block" aria-hidden="true"><rect width="${w}" height="${h}" fill="${bg}"/>${g}
+    <path d="${d}" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" style="stroke:${color};opacity:.18"/>
+    <path d="${d}" fill="none" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:${color}" data-draw="1600"/>
+    <circle cx="${s[0]}" cy="${s[1]}" r="6" fill="${light ? '#fff' : '#0B141F'}" stroke-width="3" style="stroke:${color}"/><circle cx="${e[0]}" cy="${e[1]}" r="7" style="fill:${color}"/></svg>`;
+}
+function downsample(pts, max) { if (!pts || pts.length <= max) return pts || []; const step = (pts.length - 1) / (max - 1); return Array.from({ length: max }, (_, i) => pts[Math.round(i * step)]); }
+function haversine(a, b) { const R = 6371000, r = Math.PI / 180; const dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); }
+function trimRoute(pts, m = 200) { if (!pts || pts.length < 4) return pts; let d = 0, i = 0; while (i < pts.length - 1 && d < m) { d += haversine(pts[i], pts[i + 1]); i++; } let d2 = 0, j = pts.length - 1; while (j > i && d2 < m) { d2 += haversine(pts[j], pts[j - 1]); j--; } return pts.slice(i, j + 1).length > 1 ? pts.slice(i, j + 1) : pts; }
