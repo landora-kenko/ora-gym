@@ -3,7 +3,6 @@
    boxe, natação, futebol, calistenia e registro manual
    ============================================================ */
 const mmss = hms;
-const lastSetsFor = exn => { for (const a of API.acts) { if (a.sport !== 'musculacao') continue; const s = (a.sets || []).filter(x => x.ex === exn); if (s.length) return s; } return null; };
 const bestKg = exn => { let b = 0; API.acts.forEach(a => (a.sets || []).forEach(s => { if (s.ex === exn && s.kg > b) b = s.kg; })); return b; };
 let audioCtx = null;
 function beep(f = 880, d = .15, n = 1) { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); for (let i = 0; i < n; i++) { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = f; o.connect(g); g.connect(audioCtx.destination); const t = audioCtx.currentTime + i * (d + .08); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.3, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d); o.start(t); o.stop(t + d + .02); } } catch (e) {} }
@@ -50,48 +49,6 @@ Screens.train = {
   onReturn() { Nav.refresh(); },
 };
 
-/* ---------------- Editor de ficha ---------------- */
-function fichaEditor(w, done) {
-  const draft = w ? JSON.parse(JSON.stringify(w)) : { name: '', focus: '', exercises: [] };
-  const exRow = (x, i) => `<div class="list-item" style="display:block;padding:12px 14px" data-exi="${i}"><div class="between"><div class="h3" style="flex:1;min-width:0">${esc(x.n)}</div><button class="icon-btn" style="width:34px;height:34px;background:rgba(255,255,255,.06)" data-exdel="${i}" aria-label="Remover ${esc(x.n)}">${icon('x', 15)}</button></div>
-    <div class="grid3" style="margin-top:10px;grid-template-columns:repeat(4,1fr);gap:6px">${[['sets', 'Séries'], ['reps', 'Reps'], ['kg', 'Carga kg'], ['rest', 'Desc. s']].map(([k, l]) => `<label style="display:flex;flex-direction:column;gap:4px;font-size:10.5px;color:var(--mute)">${l}<input class="input" style="height:40px;padding:0 10px" type="number" inputmode="decimal" min="0" step="${k === 'kg' ? .5 : 1}" value="${x[k]}" data-exf="${i}.${k}"></label>`).join('')}</div></div>`;
-  const body = () => `<h3 class="h2" data-e="0">${w ? 'Editar ficha' : 'Nova ficha'}</h3>
-    ${!w ? `<div class="kicker" style="margin:16px 0 8px">Começar de um modelo</div><div class="row" style="gap:8px;flex-wrap:wrap">${WORKOUT_TEMPLATES.map((t, i) => `<button class="chip" data-tpl="${i}">${t.name} · ${t.focus}</button>`).join('')}</div>` : ''}
-    <div class="grid2" style="margin-top:16px"><div class="field"><label for="fe-n">Nome</label><input class="input" id="fe-n" value="${esc(draft.name)}" placeholder="Ex.: Treino A"></div><div class="field"><label for="fe-f">Foco</label><input class="input" id="fe-f" value="${esc(draft.focus)}" placeholder="Ex.: Peito & Tríceps"></div></div>
-    <div class="between" style="margin:6px 0 10px"><b>Exercícios</b><span class="muted small">${draft.exercises.length}</span></div>
-    <div class="stack fe-list" style="gap:8px">${draft.exercises.map(exRow).join('') || '<p class="muted small">Adicione exercícios abaixo.</p>'}</div>
-    <div class="field" style="margin-top:14px"><label for="fe-add">Adicionar exercício</label><input class="input" id="fe-add" list="fe-cat" placeholder="Busque ou digite um nome"><datalist id="fe-cat">${Object.values(EXERCISES).flat().map(e => `<option value="${esc(e)}">`).join('')}</datalist></div>
-    <button class="btn btn-ghost btn-block" data-feadd>${icon('plus', 18)}Adicionar</button>
-    <div class="row" style="gap:10px;margin-top:16px"><button class="btn btn-white" style="flex:1" data-fesave>Salvar ficha</button>${w ? `<button class="btn btn-ghost" style="color:#FF6B76" data-fedel aria-label="Excluir ficha">${icon('trash', 18)}</button>` : ''}</div>`;
-  Sheet.open(`<div class="fe">${body()}</div>`, (wrap, close) => {
-    const root = $('.fe', wrap); const redraw = () => { draft.name = $('#fe-n', root).value; draft.focus = $('#fe-f', root).value; root.innerHTML = body(); };
-    root.addEventListener('input', e => { const f = e.target.dataset.exf; if (f) { const [i, k] = f.split('.'); draft.exercises[+i][k] = +e.target.value || 0; } });
-    root.addEventListener('click', async e => {
-      const t = e.target.closest('[data-tpl]'); if (t) { const tp = WORKOUT_TEMPLATES[+t.dataset.tpl]; Object.assign(draft, JSON.parse(JSON.stringify(tp))); root.innerHTML = body(); return; }
-      const d = e.target.closest('[data-exdel]'); if (d) { draft.name = $('#fe-n', root).value; draft.focus = $('#fe-f', root).value; draft.exercises.splice(+d.dataset.exdel, 1); root.innerHTML = body(); return; }
-      if (e.target.closest('[data-feadd]')) { const n = $('#fe-add', root).value.trim(); if (!n) return; draft.name = $('#fe-n', root).value; draft.focus = $('#fe-f', root).value; draft.exercises.push({ n, sets: 3, reps: 10, kg: 0, rest: 90 }); root.innerHTML = body(); haptic(6); return; }
-      if (e.target.closest('[data-fesave]')) { draft.name = $('#fe-n', root).value.trim(); draft.focus = $('#fe-f', root).value.trim(); if (!draft.name) return toast('Dê um nome para a ficha', 'x'); if (!draft.exercises.length) return toast('Adicione ao menos um exercício', 'x');
-        try { await API.saveWorkout(draft); close(); toast('Ficha salva'); done && done(); } catch (x) { toast(errMsg(x), 'x'); } }
-      if (e.target.closest('[data-fedel]')) { close(); if (await confirmDialog('Excluir ficha?', 'O histórico dos treinos feitos com ela continua salvo.', 'Excluir', true)) { await API.removeWorkout(w.id); toast('Ficha excluída', 'trash'); done && done(); Nav.back(); } }
-    });
-  }, { label: 'Ficha' });
-}
-
-/* ---------------- Detalhe da ficha ---------------- */
-Screens.workout = {
-  render({ wid }) {
-    setAccent('musculacao'); const f = API.workouts.find(x => x.id === wid); if (!f) return `<div class="pad" style="padding-top:100px"><button class="icon-btn glass" data-back aria-label="Voltar">${icon('back', 20, 2)}</button><p class="muted">Ficha não encontrada.</p></div>`;
-    const done = API.acts.filter(a => a.workoutId === wid);
-    return `<div class="topbar"><button class="icon-btn glass" data-back aria-label="Voltar">${icon('back', 20, 2)}</button><div class="title">${esc(f.name)}</div><button class="icon-btn glass" aria-label="Editar ficha" data-edit>${icon('edit', 18)}</button></div>
-    <div class="scroll"><div style="position:relative;height:330px"><div class="hero-stack" style="position:absolute;inset:0" data-e="0" data-ek="zoom">${scene('musculacao', 'musculacao', { i: 1 })}</div>
-      <div class="pad page" style="position:absolute;left:0;right:0;bottom:18px"><div class="kicker" style="color:var(--accent)" data-e="1">${esc(f.name)} · ${done.length ? 'feito ' + done.length + 'x' : 'nunca feito'}</div><h1 class="display" style="font-size:34px;margin:8px 0 14px" data-e="2">${esc(f.focus || f.name)}</h1>
-      <div class="row" style="gap:8px" data-e="3"><span class="tag">${icon('dumbbell', 13)}${f.exercises.length} exercícios</span><span class="tag">${icon('grid', 13)}${f.exercises.reduce((s, e) => s + e.sets, 0)} séries</span>${done[0] ? `<span class="tag">${icon('clock', 13)}último: ${shortDate(done[0].startedAt)}</span>` : ''}</div></div></div>
-      <div class="pad page"><div class="stack" style="margin-top:14px">${f.exercises.map((x, i) => { const b = bestKg(x.n); return `<button class="list-item press" style="text-align:left" data-push="exercise" data-params='${JSON.stringify({ n: x.n })}' data-e="${4 + i}"><span class="ico"><span class="num" style="font-size:17px">${i + 1}</span></span><div style="flex:1;min-width:0"><div class="h3">${esc(x.n)}</div><div class="muted small" style="margin-top:3px">${x.sets} × ${x.reps}${x.kg ? ' · ' + fmt(x.kg, x.kg % 1 ? 1 : 0) + ' kg' : ''} · descanso ${x.rest}s${b ? ' · recorde ' + fmt(b, b % 1 ? 1 : 0) + ' kg' : ''}</div></div>${icon('next', 18)}</button>`; }).join('')}</div>
-      <div style="height:110px"></div></div></div>
-      <div class="wcta" data-e="10"><button class="btn btn-accent" data-push="liftLive" data-params='${JSON.stringify({ wid })}'>${icon('play', 18)}Começar treino</button></div>`;
-  },
-  mount(el, { wid }) { bindScrollFx(el, { bar: $('.topbar', el), hero: $('.hero-stack', el), threshold: 200 }); const ed = $('[data-edit]', el); if (ed) ed.onclick = () => fichaEditor(API.workouts.find(x => x.id === wid), () => { el.innerHTML = Screens.workout.render({ wid }); Screens.workout.mount(el, { wid }); Motion.enter(el, 0, 20); }); },
-};
 Screens.exercise = {
   render({ n }) {
     const hist = []; API.acts.slice().reverse().forEach(a => { const s = (a.sets || []).filter(x => x.ex === n); if (s.length) hist.push([a.startedAt, Math.max(...s.map(x => x.kg || 0)), s]); });
@@ -104,79 +61,6 @@ Screens.exercise = {
       <div style="height:40px"></div></div></div>`;
   },
   mount(el, { n }) { const hist = []; API.acts.slice().reverse().forEach(a => { const s = (a.sets || []).filter(x => x.ex === n); if (s.length) hist.push([a.startedAt, Math.max(...s.map(x => x.kg || 0))]); }); const c = $('#exch', el); if (c && hist.length > 1) mountChart(c, hist.map(h => h[1]), { unit: 'kg', floor: true, tipLabel: i => shortDate(hist[i][0]) }); },
-};
-
-/* ---------------- Musculação ao vivo ---------------- */
-Screens.liftLive = {
-  noSwipe: true,
-  render() {
-    setAccent('musculacao');
-    return `<div style="position:absolute;inset:0;background:radial-gradient(90% 50% at 80% 0%,color-mix(in oklab,var(--accent) 26%,transparent),transparent 70%),#0B0B0B"></div>
-    <div style="position:absolute;inset:0;opacity:.3">${scene('musculacao', 'musculacao', { fade: 'background:linear-gradient(180deg,rgba(11,11,11,.3),#0B0B0B 62%)' })}</div>
-    <div class="topbar"><button class="icon-btn glass" id="ll-close" aria-label="Encerrar treino">${icon('x', 20, 2)}</button>
-      <div class="glass" style="border-radius:999px;padding:8px 14px;display:flex;gap:8px;align-items:center"><span class="dot" style="background:#FF4D5E;box-shadow:0 0 10px #FF4D5E"></span><span class="num" style="font-size:18px" id="ll-elapsed">00:00</span></div>
-      <button class="tag" id="ll-idx" style="height:34px">—</button></div>
-    <div class="live-col" style="position:absolute;left:20px;right:20px;top:calc(var(--safe-top) + 74px);bottom:24px;display:flex;flex-direction:column">
-      <div id="ll-head"></div><div class="set-dots" style="margin:18px 0 0" id="ll-dots"></div>
-      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px">
-        <div class="stepper"><button class="icon-btn" data-kg="-2.5" aria-label="Diminuir carga">${icon('minus', 22, 2)}</button><div style="text-align:center"><div class="live-num" style="font-size:72px"><span id="ll-kg">0</span><span style="font-size:22px;color:var(--mute);margin-left:6px">kg</span></div><div class="muted small" id="ll-pr"></div></div><button class="icon-btn" data-kg="2.5" aria-label="Aumentar carga">${icon('plus', 22, 2)}</button></div>
-        <div class="stepper"><button class="icon-btn" data-rp="-1" aria-label="Menos repetições">${icon('minus', 20, 2)}</button><div style="text-align:center"><div class="live-num" style="font-size:46px" id="ll-reps">0</div><div class="muted small">repetições</div></div><button class="icon-btn" data-rp="1" aria-label="Mais repetições">${icon('plus', 20, 2)}</button></div></div>
-      <button class="btn btn-accent btn-block" id="ll-done" style="height:62px;font-size:16px;color:#0B0B0B">${icon('check', 20, 2.4)}<span>Concluir série</span></button>
-      <div class="row" style="gap:8px;margin-top:10px"><button class="btn btn-ghost btn-sm" style="flex:1" id="ll-next">Próximo exercício</button><button class="btn btn-ghost btn-sm" style="flex:1" id="ll-add">+ Exercício</button><button class="btn btn-ghost btn-sm" style="flex:1" id="ll-fin">Finalizar</button></div></div>
-    <div id="ll-rest" style="position:absolute;inset:0;z-index:60;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(4,4,6,.92);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)">
-      <div class="kicker">Descanso</div><div style="position:relative;width:260px;height:260px;margin:22px 0 26px"><svg width="260" height="260" style="transform:rotate(-90deg)" aria-hidden="true"><circle cx="130" cy="130" r="118" stroke="rgba(255,255,255,.08)" stroke-width="10" fill="none"/><circle id="ll-rest-c" cx="130" cy="130" r="118" stroke-width="10" fill="none" stroke-linecap="round" style="stroke:var(--accent);filter:drop-shadow(0 0 12px var(--accent))" stroke-dasharray="${2 * Math.PI * 118}"/></svg>
-      <div style="position:absolute;inset:0;display:grid;place-items:center"><div style="text-align:center"><div class="live-num" style="font-size:72px" id="ll-rest-t">90</div><div class="muted small">segundos</div></div></div></div>
-      <div class="row"><button class="btn btn-ghost" id="ll-rest-add">+15 s</button><button class="btn btn-white" id="ll-rest-skip">Pular descanso</button></div><div class="muted small" style="margin-top:24px" id="ll-rest-next"></div></div>`;
-  },
-  mount(el, { wid, free }) {
-    const W = wid ? API.workouts.find(x => x.id === wid) : null;
-    const plan = W ? W.exercises.map(x => ({ ...x })) : [];
-    const S = { i: 0, set: 0, kg: 0, reps: 10, t0: Date.now(), sets: [], prs: [], rest: null };
-    const tick = setInterval(() => { if (!el.isConnected) return clearInterval(tick); $('#ll-elapsed', el).textContent = hms((Date.now() - S.t0) / 1000); }, 500);
-    let lock = null; keepAwake().then(l => lock = l);
-    el._cleanup = () => { clearInterval(tick); S.rest && clearInterval(S.rest.iv); try { lock && lock.release(); } catch (e) {} };
-    const kgEl = $('#ll-kg', el), repsEl = $('#ll-reps', el);
-    const cur = () => plan[S.i];
-    const load = anim => { const x = cur(); const head = $('#ll-head', el);
-      if (!x) { head.innerHTML = `<div class="kicker">Treino livre</div><h1 class="display" style="font-size:30px;margin:8px 0 0">Adicione um exercício</h1>`; $('#ll-dots', el).innerHTML = ''; $('#ll-idx', el).textContent = '0/0'; return; }
-      const prev = lastSetsFor(x.n); S.kg = x.kg || (prev ? prev[0].kg : 0); S.reps = x.reps || (prev ? prev[0].reps : 10); S.set = S.sets.filter(s => s.ex === x.n).length;
-      $('#ll-idx', el).textContent = `${S.i + 1}/${plan.length}`;
-      head.innerHTML = `<div class="kicker" style="color:var(--accent)">Exercício ${S.i + 1} · ${esc(EX_GROUP[x.n] || '')}</div><h1 class="display ll-title" style="font-size:30px;margin:8px 0 0">${esc(x.n)}</h1>${prev ? `<div class="muted small" style="margin-top:6px">Última vez: ${prev.map(s => `${fmt(s.kg || 0, (s.kg || 0) % 1 ? 1 : 0)}×${s.reps}`).join(' · ')}</div>` : ''}`;
-      Motion.kinetic($('.ll-title', head), anim ? 60 : 300); dots(); kgEl.textContent = fmt(S.kg, S.kg % 1 ? 1 : 0); repsEl.textContent = S.reps; prText(); };
-    const dots = () => { const x = cur(); if (!x) return; $('#ll-dots', el).innerHTML = Array.from({ length: Math.max(x.sets, S.set + 1) }, (_, i) => `<i class="${i < S.set ? 'done' : i === S.set ? 'cur' : ''}"></i>`).join(''); };
-    const prText = () => { const x = cur(); if (!x) return; const b = Math.max(bestKg(x.n), ...S.sets.filter(s => s.ex === x.n).map(s => s.kg), 0); $('#ll-pr', el).innerHTML = b ? (S.kg > b ? `<span style="color:#A3FF12">Acima do seu recorde (${fmt(b, b % 1 ? 1 : 0)} kg)</span>` : `Recorde: ${fmt(b, b % 1 ? 1 : 0)} kg`) : 'Primeira vez neste exercício'; };
-    const roll = (node, val, dir) => { node.textContent = val; A(node, [{ transform: `translateY(${dir * 14}px)`, opacity: .2 }, { transform: 'none', opacity: 1 }], { spring: [320, 20] }); };
-    el.addEventListener('click', e => { const k = e.target.closest('[data-kg]'), r = e.target.closest('[data-rp]');
-      if (k) { haptic(5); const d = +k.dataset.kg; S.kg = Math.max(0, S.kg + d); roll(kgEl, fmt(S.kg, S.kg % 1 ? 1 : 0), d > 0 ? 1 : -1); prText(); }
-      if (r) { haptic(5); const d = +r.dataset.rp; S.reps = Math.max(1, S.reps + d); roll(repsEl, S.reps, d > 0 ? 1 : -1); } });
-    const addEx = () => { Sheet.open(`<h3 class="h2">Adicionar exercício</h3><div class="field" style="margin-top:14px"><label for="la-n">Exercício</label><input class="input" id="la-n" list="la-cat" placeholder="Busque ou digite"><datalist id="la-cat">${Object.values(EXERCISES).flat().map(e => `<option value="${esc(e)}">`).join('')}</datalist></div><button class="btn btn-white btn-block" data-la>Adicionar</button>`,
-      (w, close) => { $('[data-la]', w).onclick = () => { const n = $('#la-n', w).value.trim(); if (!n) return; plan.push({ n, sets: 3, reps: 10, kg: 0, rest: 90 }); S.i = plan.length - 1; close(); load(true); }; }, { label: 'Exercício' }); };
-    $('#ll-add', el).onclick = addEx; $('#ll-idx', el).onclick = () => { if (!plan.length) return; Sheet.open(`<h3 class="h2">Exercícios</h3><div class="stack" style="margin-top:12px;gap:8px">${plan.map((x, i) => `<button class="list-item" style="text-align:left;${i === S.i ? 'border-color:var(--accent)' : ''}" data-go="${i}"><span class="ico">${i + 1}</span><div style="flex:1"><div class="h3">${esc(x.n)}</div><div class="muted small">${S.sets.filter(s => s.ex === x.n).length}/${x.sets} séries</div></div></button>`).join('')}</div>`, (w, close) => w.addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) { S.i = +b.dataset.go; close(); load(true); } }), { label: 'Exercícios' }); };
-    $('#ll-next', el).onclick = () => { if (S.i < plan.length - 1) { S.i++; load(true); } else toast('Esse é o último exercício', 'check'); };
-    $('#ll-done', el).onclick = async () => {
-      const x = cur(); if (!x) return addEx(); haptic([8, 30, 12]);
-      const prevBest = Math.max(bestKg(x.n), ...S.sets.filter(s => s.ex === x.n).map(s => s.kg), 0);
-      S.sets.push({ ex: x.n, kg: S.kg, reps: S.reps }); S.set++; dots();
-      if (S.kg > prevBest && prevBest > 0 && !S.prs.includes(x.n)) { S.prs.push(x.n); await celebrate({ title: 'Novo recorde pessoal', sub: x.n, big: fmt(S.kg, S.kg % 1 ? 1 : 0) + ' kg', points: 0, color: '#A3FF12', icon: 'medal', share: false }); }
-      if (S.set >= x.sets) { if (S.i < plan.length - 1) startRest(x.rest || 90, () => { S.i++; load(true); }, `Próximo: ${plan[S.i + 1].n}`); else { toast('Último exercício concluído — finalize quando quiser', 'trophy'); prText(); } }
-      else startRest(x.rest || 90, () => {}, `Série ${S.set + 1} de ${x.sets}`);
-    };
-    const startRest = (secs, then, label) => {
-      const ov = $('#ll-rest', el), c = $('#ll-rest-c', el), t = $('#ll-rest-t', el); const C = 2 * Math.PI * 118; let total = secs, base = secs; const t1 = Date.now(); $('#ll-rest-next', el).textContent = label;
-      ov.style.display = 'flex'; A(ov, [{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
-      const upd = left => { t.textContent = Math.ceil(left); c.style.strokeDashoffset = C * (1 - left / total); };
-      const iv = setInterval(() => { const left = base - (Date.now() - t1) / 1000; if (left <= 0) end(); else { upd(left); if (Math.ceil(left) === 3 && !iv._b) { iv._b = 1; beep(660, .12, 2); } } }, 100); upd(secs);
-      const end = () => { clearInterval(iv); S.rest = null; beep(990, .25); haptic([20, 60, 20]); A(ov, [{ opacity: 1 }, { opacity: 0 }], { duration: 260 }).finished.then(() => ov.style.display = 'none'); then(); };
-      S.rest = { iv }; $('#ll-rest-add', el).onclick = () => { base += 15; total += 15; }; $('#ll-rest-skip', el).onclick = end;
-    };
-    const finish = () => { if (!S.sets.length) { toast('Conclua ao menos uma série', 'x'); return; } el._cleanup();
-      const dur = (Date.now() - S.t0) / 1000; const vol = S.sets.reduce((s, x) => s + (x.kg || 0) * x.reps, 0);
-      Nav.push('summary', { act: { sport: 'musculacao', title: W ? `${W.name}${W.focus ? ' — ' + W.focus : ''}` : 'Treino livre', startedAt: S.t0, duration: Math.round(dur), sets: S.sets, volume: vol, workoutId: W ? W.id : null, prs: S.prs } }); };
-    $('#ll-fin', el).onclick = finish;
-    $('#ll-close', el).onclick = async () => { if (!S.sets.length) { el._cleanup(); return Nav.back(); } if (await confirmDialog('Encerrar treino?', 'Você pode salvar as séries que já concluiu.', 'Ir para o resumo')) finish(); };
-    load(false); if (!plan.length) addEx();
-  },
-  unmount(el) { el._cleanup && el._cleanup(); },
 };
 
 /* ---------------- Corrida / pedal com GPS real ---------------- */

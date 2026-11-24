@@ -4,7 +4,7 @@
    tudo do usuário vem do Firestore.
    ============================================================ */
 const SPORTS = {
-  musculacao: { id: 'musculacao', name: 'Musculação', short: 'Força', icon: 'dumbbell', c: '#4C8DFF', c2: '#1E4FD8', tagline: 'Cada série conta.' },
+  musculacao: { id: 'musculacao', name: 'Musculação', short: 'Força', icon: 'dumbbell', c: '#E3192B', c2: '#9E0B14', tagline: 'Cada série conta.' },
   corrida: { id: 'corrida', name: 'Corrida', short: 'Corrida', icon: 'run', c: '#E8ECE6', c2: '#7C8784', tagline: 'Cada quilômetro conta uma história.' },
   ciclismo: { id: 'ciclismo', name: 'Ciclismo', short: 'Pedal', icon: 'bike', c: '#FF7426', c2: '#C2410C', tagline: 'A estrada é o seu ritmo.' },
   calistenia: { id: 'calistenia', name: 'Calistenia', short: 'Calistenia', icon: 'rings', c: '#A3FF12', c2: '#4D7C0F', tagline: 'O corpo é o equipamento.' },
@@ -37,7 +37,7 @@ const WORKOUT_TEMPLATES = [
   { name: 'Treino A', focus: 'Peito & Tríceps', exercises: [ex('Supino reto com barra', 4, 8, 0), ex('Supino inclinado com halteres', 3, 10, 0, 75), ex('Crucifixo no cabo', 3, 12, 0, 60), ex('Tríceps testa', 3, 10, 0, 60), ex('Tríceps na polia', 3, 12, 0, 60)] },
   { name: 'Treino B', focus: 'Costas & Bíceps', exercises: [ex('Puxada frontal', 4, 10, 0), ex('Remada curvada', 4, 8, 0), ex('Remada unilateral', 3, 10, 0, 75), ex('Rosca direta', 3, 10, 0, 60), ex('Rosca martelo', 3, 12, 0, 60)] },
   { name: 'Treino C', focus: 'Pernas', exercises: [ex('Agachamento livre', 4, 8, 0, 120), ex('Leg press 45°', 4, 10, 0), ex('Cadeira extensora', 3, 12, 0, 60), ex('Mesa flexora', 3, 12, 0, 60), ex('Panturrilha em pé', 4, 15, 0, 45)] },
-  { name: 'Treino D', focus: 'Ombros & Core', exercises: [ex('Desenvolvimento com halteres', 4, 10, 0), ex('Elevação lateral', 4, 12, 0, 60), ex('Crucifixo inverso', 3, 12, 0, 60), ex('Prancha', 3, 1, 0, 45), ex('Elevação de pernas', 3, 12, 0, 45)] },
+  { name: 'Treino D', focus: 'Ombros & Core', exercises: [ex('Desenvolvimento com halteres', 4, 10, 0), ex('Elevação lateral', 4, 12, 0, 60), ex('Crucifixo inverso', 3, 12, 0, 60), { n: 'Prancha', type: 'time', sets: 3, sec: 60, rest: 45 }, ex('Elevação de pernas', 3, 12, 0, 45)] },
 ];
 /* Calistenia: blocos e progressão de habilidades (o usuário marca as que já domina) */
 const CALI_BLOCKS = ['Barra fixa', 'Paralelas', 'Flexão de braço', 'Pike push-up', 'Agachamento', 'Pistol assistido', 'Barra australiana', 'Transição na faixa', 'Negativa de muscle-up', 'L-sit (s)', 'Hollow hold (s)', 'Prancha (s)'];

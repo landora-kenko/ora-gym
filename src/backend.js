@@ -167,7 +167,7 @@ const API = (() => {
   const activitiesOf = async id => id === uid() ? st.acts : D.query(`users/${id}/activities`, { order: ['startedAt', 'desc'], limit: 200 });
 
   /* ---- fichas ---- */
-  async function saveWorkout(w) { const data = strip({ name: w.name, focus: w.focus || '', exercises: w.exercises || [], ts: w.ts || Date.now() });
+  async function saveWorkout(w) { const data = strip({ name: w.name, focus: w.focus || '', days: w.days || [], exercises: w.exercises || [], cardio: w.cardio && w.cardio.name ? { name: w.cardio.name, min: w.cardio.min || 20 } : null, ts: w.ts || Date.now() });
     if (w.id) { await D.set(`users/${uid()}/workouts/${w.id}`, data); const i = st.workouts.findIndex(x => x.id === w.id); st.workouts[i] = { id: w.id, ...data }; return st.workouts[i]; }
     const id = await D.add(`users/${uid()}/workouts`, data); const n = { id, ...data }; st.workouts.push(n); return n; }
   async function removeWorkout(id) { await D.del(`users/${uid()}/workouts/${id}`); st.workouts = st.workouts.filter(w => w.id !== id); }
