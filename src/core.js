@@ -309,3 +309,11 @@ function confirmDialog(title, text, okLabel = 'Confirmar', danger = false) {
       (w, close) => { $('[data-ok]', w).onclick = () => { res(true); close(); }; }, { onClose: () => res(false), label: title });
   });
 }
+
+/* ---------- Bloqueia zoom por pinça e por dois toques (iOS ignora user-scalable=no) ---------- */
+(() => {
+  const inMap = e => e.target && e.target.closest && e.target.closest('.leaflet-container');
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => { if (!inMap(e)) e.preventDefault(); }, { passive: false }));
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1 && !inMap(e)) e.preventDefault(); }, { passive: false });
+  document.addEventListener('dblclick', e => { if (!inMap(e)) e.preventDefault(); }, { passive: false });
+})();

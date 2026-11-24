@@ -20,7 +20,7 @@
   transition: --accent .9s cubic-bezier(.2,.7,.2,1), --accent2 .9s cubic-bezier(.2,.7,.2,1);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;background:#050505;color:var(--text);font-family:var(--ui);-webkit-font-smoothing:antialiased}
+html,body{margin:0;height:100%;touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior:none;background:#050505;color:var(--text);font-family:var(--ui);-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 input,textarea,select{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:10px}
@@ -255,7 +255,7 @@ textarea.input{height:auto;padding:14px 16px;resize:none}
 /* ================= ORA GYM additions ================= */
 .ob-field{display:flex;align-items:center;gap:12px;height:56px;padding:0 18px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#C9D3E0;transition:border-color .25s,background .25s}
 .ob-field:focus-within{border-color:#fff;background:rgba(255,255,255,.12)}
-.ob-field input{flex:1;min-width:0;background:none;border:0;outline:none;color:#fff;font-size:15px}
+.ob-field input{flex:1;min-width:0;background:none;border:0;outline:none;color:#fff;font-size:16px}
 .ob-field input::placeholder{color:#93A1B5}
 .ob-eye{color:#93A1B5;display:grid;place-items:center;width:32px;height:32px}
 .masonry{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -457,3 +457,17 @@ select.input{appearance:none;-webkit-appearance:none}
   .live-col{left:50%!important;right:auto!important;width:min(560px, calc(100% - 48px));transform:translateX(-50%)}
 }
 @media (min-width:1400px){ .page{max-width:1240px} }
+
+/* Sem zoom: campos com 16 px no celular (o iPhone dá zoom ao focar campos menores) */
+input,textarea,select,.input{font-size:16px}
+*{-webkit-tap-highlight-color:transparent}
+.leaflet-container{touch-action:none}
+/* Preenchimento automático (e-mail/senha salvos): sem fundo amarelo/azul do navegador */
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active,
+textarea:-webkit-autofill,select:-webkit-autofill{
+  -webkit-text-fill-color:#fff!important;caret-color:#fff;
+  -webkit-box-shadow:0 0 0 1000px transparent inset!important;box-shadow:0 0 0 1000px transparent inset!important;
+  background-color:transparent!important;background-clip:text!important;
+  transition:background-color 600000s 0s,color 600000s 0s!important;
+  font:inherit;font-size:16px}
+input:autofill{background-color:transparent!important;-webkit-text-fill-color:#fff!important}
