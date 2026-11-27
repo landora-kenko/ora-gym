@@ -46,16 +46,21 @@ const Nav = {
     this.clear();
     this.base.getAnimations().forEach(a => a.cancel()); this.base.style.transform = ''; this.base.style.filter = ''; setAccent('brand');
     const prevIdx = TABS.findIndex(t => t[0] === this.tab), idx = TABS.findIndex(t => t[0] === tab);
-    const dir = idx >= prevIdx ? 1 : -1; const pane = $('#pane'); const same = tab === this.tab && pane.children.length;
+    const dir = idx >= prevIdx ? 1 : -1; const pane = $('#pane');
+    // só a tela visível (a última) sai com animação; restos de trocas rápidas saem na hora
+    const kids = [...pane.children]; const old = kids.pop() || null; kids.forEach(k => { const sc0 = Screens[k.dataset.tab]; sc0 && sc0.unmount && sc0.unmount(k); k.remove(); });
+    const same = tab === this.tab && !!old;
     this.tab = tab;
     $$('.tab', this.base).forEach(b => { const on = b.dataset.tab === tab; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
     this.placeInd(true); this.markSide();
-    const old = pane.firstElementChild;
     const el = document.createElement('div'); el.className = 'tabpane'; el.dataset.tab = tab;
     const sc = Screens[tab]; el.innerHTML = sc.render(params); pane.appendChild(el);
     if (old) {
       old.style.pointerEvents = 'none';
-      A(old, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${-dir * 40}px) scale(.98)` }], { duration: 260, easing: 'in' }).finished.then(() => old.remove());
+      const rm = () => { if (old.isConnected) { const sc0 = Screens[old.dataset.tab]; sc0 && sc0.unmount && sc0.unmount(old); old.remove(); } };
+      old.dataset.leaving = '1'; old.setAttribute('aria-hidden', 'true');
+      try { A(old, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${-dir * 40}px) scale(.98)` }], { duration: 260, easing: 'in' }).finished.then(rm, rm); } catch (e) { rm(); }
+      setTimeout(rm, 450);
       if (!same) A(el, [{ opacity: 0, transform: `translateX(${dir * 50}px)` }, { opacity: 1, transform: 'none' }], { spring: [170, 22] });
     }
     sc.mount && sc.mount(el, params);
@@ -63,7 +68,7 @@ const Nav = {
     if (location.hash !== '#' + tab) history.replaceState(null, '', location.pathname + location.search + '#' + tab);
     document.title = `${TABS.find(t => t[0] === tab)[1]} · OraGym`;
   },
-  refresh() { const el = $('#pane').firstElementChild; if (!el) return; const sc = Screens[this.tab]; const y = ($('.scroll', el) || {}).scrollTop || 0; el.innerHTML = sc.render({}); el._postsWired = false; sc.mount && sc.mount(el, {}); Motion.enter(el, 0, 30); const s2 = $('.scroll', el); if (s2) s2.scrollTop = y; if (this.side.innerHTML) this.buildSide(); },
+  refresh() { const el = $('#pane').lastElementChild; if (!el) return; const sc = Screens[this.tab]; const y = ($('.scroll', el) || {}).scrollTop || 0; el.innerHTML = sc.render({}); el._postsWired = false; sc.mount && sc.mount(el, {}); Motion.enter(el, 0, 30); const s2 = $('.scroll', el); if (s2) s2.scrollTop = y; if (this.side.innerHTML) this.buildSide(); },
   push(id, params = {}, opts = {}) {
     const sc = Screens[id]; if (!sc) return; const el = document.createElement('div'); el.className = 'layer'; el.dataset.screen = id;
     el.innerHTML = sc.render(params); this.stage.appendChild(el);
@@ -99,7 +104,7 @@ const Nav = {
       A(under, [{ transform: 'translateX(-28%)', filter: 'brightness(.55)' }, { transform: 'none', filter: 'brightness(1)' }], { duration: 380, easing: 'out' });
     }
     setAccent(e.accentSport || 'brand');
-    if (under === this.base) { const sc2 = Screens[this.tab]; sc2.onReturn && sc2.onReturn($('#pane').firstElementChild); }
+    if (under === this.base) { const sc2 = Screens[this.tab]; sc2.onReturn && sc2.onReturn($('#pane').lastElementChild); }
     else { const top = this.stack[this.stack.length - 1]; const s3 = Screens[top.id]; s3.onReturn && s3.onReturn(top.el, top.params); }
   },
   edgeSwipe() {

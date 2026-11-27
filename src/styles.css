@@ -723,3 +723,5 @@ input:autofill{background-color:transparent!important;-webkit-text-fill-color:#f
   .fx-steppers{grid-template-columns:1fr 1fr}
   .fx-split{flex-wrap:wrap;overflow:visible}
 }
+
+.tabpane[data-leaving]{pointer-events:none}
