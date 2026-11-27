@@ -898,3 +898,6 @@ html.native-android{--safe-top:36px}
 html.native-android .tabbar{bottom:calc(16px + env(safe-area-inset-bottom))}
 html.native body{-webkit-user-select:none;user-select:none}
 html.native input,html.native textarea{-webkit-user-select:text;user-select:text}
+
+/* mapas: tiles claros do OpenStreetMap viram tema escuro */
+.rx-tiles{filter:invert(1) hue-rotate(180deg) brightness(.82) contrast(.92) saturate(.35)}

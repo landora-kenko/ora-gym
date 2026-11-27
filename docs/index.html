@@ -922,6 +922,9 @@ html.native-android .tabbar{bottom:calc(16px + env(safe-area-inset-bottom))}
 html.native body{-webkit-user-select:none;user-select:none}
 html.native input,html.native textarea{-webkit-user-select:text;user-select:text}
 
+/* mapas: tiles claros do OpenStreetMap viram tema escuro */
+.rx-tiles{filter:invert(1) hue-rotate(180deg) brightness(.82) contrast(.92) saturate(.35)}
+
 </style>
 </head>
 <body>
@@ -3750,6 +3753,16 @@ const RUN_MODES = { free: 'Livre', dist: 'Distância', time: 'Tempo', int: 'Inte
 const runPrefs = () => ({ voice: true, auto: true, ...(Store.get().runPrefs || {}) });
 const setRunPrefs = p => Store.set({ runPrefs: { ...runPrefs(), ...p } });
 
+/* ---------- mapa base sem chave de API: OpenStreetMap escurecido; se falhar, Esri ---------- */
+function baseTiles(m) {
+  const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', className: 'rx-tiles' });
+  let errs = 0, swapped = false;
+  osm.on('tileerror', () => { if (swapped || ++errs < 3) return; swapped = true; m.removeLayer(osm);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Mapa © Esri', className: 'rx-tiles' }).addTo(m); });
+  osm.on('tileload', () => { errs = 0; });
+  osm.addTo(m); return osm;
+}
+
 /* ---------- voz ---------- */
 const Voice = {
   say(t) { if (!runPrefs().voice || !('speechSynthesis' in window)) return; try { const u = new SpeechSynthesisUtterance(t); u.lang = 'pt-BR'; u.rate = 1.04; const v = speechSynthesis.getVoices().find(x => /pt(-|_)BR/i.test(x.lang)); if (v) u.voice = v; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {} },
@@ -3883,7 +3896,7 @@ Screens.runLive = {
     let map = null, line = null, dot = null, lock = null, watch = null, fix = null, prim = 0;
     const mapBox = $('#rl-map', el);
     if (window.L) { try { map = L.map(mapBox, { zoomControl: false, attributionControl: true }).setView([-14.2, -51.9], 4);
-      map.attributionControl.setPrefix(''); L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, attribution: '© OpenStreetMap © CARTO' }).addTo(map);
+      map.attributionControl.setPrefix(''); baseTiles(map);
       line = L.polyline([], { color, weight: 6, opacity: .95, lineCap: 'round' }).addTo(map); dot = L.circleMarker([0, 0], { radius: 9, color: '#0B0B0B', weight: 4, fillColor: color, fillOpacity: 1 }); setTimeout(() => map.invalidateSize(), 300); } catch (e) { map = null; } }
     const persist = (force) => { if (S.state === 'wait' || S.state === 'done') return; if (!force && Date.now() - S.saved < 4000) return; S.saved = Date.now(); Store.set({ [RUN_KEY()]: { ...S, pts: S.pts.length > 3000 ? downsample(S.pts, 3000) : S.pts, last: null, savedAt: Date.now() } }); };
     const clearSaved = () => Store.set({ [RUN_KEY()]: null });
@@ -3992,7 +4005,7 @@ function runMap(box, route, color) {
   if (!box || !route || route.length < 2) return null;
   if (!window.L) { box.innerHTML = routeSVG(route, { color }); return null; }
   try { const m = L.map(box, { zoomControl: false, attributionControl: true, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false, tap: false });
-    m.attributionControl.setPrefix(''); L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, attribution: '© OpenStreetMap © CARTO' }).addTo(m);
+    m.attributionControl.setPrefix(''); baseTiles(m);
     const pl = L.polyline(route, { color, weight: 5, opacity: 1, lineCap: 'round' }).addTo(m);
     L.circleMarker(route[0], { radius: 6, color: '#0B0B0B', weight: 3, fillColor: '#fff', fillOpacity: 1 }).addTo(m); L.circleMarker(route[route.length - 1], { radius: 6, color: '#0B0B0B', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(m);
     const fit = () => { try { m.invalidateSize(); m.fitBounds(pl.getBounds(), { padding: [28, 28] }); } catch (e) {} }; fit(); setTimeout(fit, 350); return m; } catch (e) { box.innerHTML = routeSVG(route, { color }); return null; }
