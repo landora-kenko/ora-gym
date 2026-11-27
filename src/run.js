@@ -142,6 +142,7 @@ Screens.runLive = {
       <div class="rl-gps glass"><span class="dot" id="rl-gps" style="background:#FFC23D"></span><span id="rl-gpst">Procurando GPS…</span></div>
       <button class="icon-btn glass" id="rl-set" aria-label="Ajustes da corrida">${icon('settings', 19)}</button></div>
     <div class="rl-target" id="rl-target" hidden></div>
+    <div class="rl-mapbtns"><button class="icon-btn glass" id="rl-rec" aria-label="Centralizar no meu ponto">${icon('pin', 19)}</button><button class="icon-btn glass" id="rl-col" aria-label="Mostrar mapa maior">${icon('expand', 18)}</button></div>
     <div class="rl-panel live-col">
       <button class="rl-primary" id="rl-prim" aria-label="Trocar métrica principal"><b class="num" id="rl-pv">0,00</b><span id="rl-pl">quilômetros</span></button>
       <div class="rl-row"><div><b class="num" id="rl-a">00:00</b><span id="rl-al">tempo</span></div><div><b class="num" id="rl-b">--</b><span>${isRun ? 'pace atual' : 'km/h'}</span></div><div><b class="num" id="rl-c">--</b><span>${isRun ? 'pace médio' : 'média'}</span></div></div>
@@ -152,16 +153,17 @@ Screens.runLive = {
     const isRun = id === 'corrida'; const color = isRun ? RUN_C : (SPORTS[id] || {}).c || '#FF7426';
     let S = { v: 1, id, mode, target, plan: mode === 'int' ? intervalPlan({ reps: reps || target || 6, fast, slow }) : null, state: 'wait', pts: [], dist: 0, moving: 0, lastT: 0, last: null, startedAt: 0, splits: [], kmMark: 1000, kmT: 0, elev: 0, alt: null, lastMove: 0, saved: 0, hit: false, phase: 0, phaseT: 0 };
     const saved = Store.get()[RUN_KEY()]; let resume = saved && saved.v === 1 && saved.id === id && Date.now() - (saved.savedAt || 0) < 6 * 3600e3 && saved.dist > 0;
-    let map = null, line = null, dot = null, lock = null, watch = null, fix = null, prim = 0;
+    let map = null, line = null, dot = null, accC = null, startM = null, follow = true, lock = null, watch = null, fix = null, prim = 0;
     const mapBox = $('#rl-map', el);
     if (window.L) { try { map = L.map(mapBox, { zoomControl: false, attributionControl: true }).setView([-14.2, -51.9], 4);
       map.attributionControl.setPrefix(''); baseTiles(map);
-      line = L.polyline([], { color, weight: 6, opacity: .95, lineCap: 'round' }).addTo(map); dot = L.circleMarker([0, 0], { radius: 9, color: '#0B0B0B', weight: 4, fillColor: color, fillOpacity: 1 }); setTimeout(() => map.invalidateSize(), 300); } catch (e) { map = null; } }
+      line = L.polyline([], { color, weight: 6, opacity: .95, lineCap: 'round', lineJoin: 'round' }).addTo(map); accC = L.circle([0, 0], { radius: 10, color, weight: 1, opacity: .5, fillColor: color, fillOpacity: .12, interactive: false }); dot = L.circleMarker([0, 0], { radius: 9, color: '#0B0B0B', weight: 4, fillColor: color, fillOpacity: 1 });
+      map.on('dragstart', () => { follow = false; $t('#rl-rec').classList.add('on'); }); setTimeout(() => map.invalidateSize(), 300); } catch (e) { map = null; } }
     const persist = (force) => { if (S.state === 'wait' || S.state === 'done') return; if (!force && Date.now() - S.saved < 4000) return; S.saved = Date.now(); Store.set({ [RUN_KEY()]: { ...S, pts: S.pts.length > 3000 ? downsample(S.pts, 3000) : S.pts, last: null, savedAt: Date.now() } }); };
     const clearSaved = () => Store.set({ [RUN_KEY()]: null });
     const $t = sel => $(sel, el);
     const gpsUI = (t, c) => { $t('#rl-gpst').textContent = t; $t('#rl-gps').style.background = c; };
-    const primVals = () => { const kmv = fmt(S.dist / 1000, 2); return [[kmv, 'quilômetros'], [hms(S.moving), 'tempo em movimento'], [S.dist > 50 ? (isRun ? paceOf(S.moving, S.dist) : fmt(S.dist / S.moving * 3.6, 1)) : '--', isRun ? 'pace médio /km' : 'km/h médio']][prim]; };
+    const primVals = () => { const kmv = fmt(S.dist / 1000, 2); return [[kmv, `quilômetros · ${Math.round(S.dist).toLocaleString('pt-BR')} m`], [hms(S.moving), 'tempo em movimento'], [S.dist > 50 ? (isRun ? paceOf(S.moving, S.dist) : fmt(S.dist / S.moving * 3.6, 1)) : '--', isRun ? 'pace médio /km' : 'km/h médio']][prim]; };
     const upd = () => { const [v, l] = primVals(); $t('#rl-pv').textContent = v; $t('#rl-pl').textContent = l;
       const sec = [[hms(S.moving), 'tempo'], [fmt(S.dist / 1000, 2), 'km'], [fmt(S.dist / 1000, 2), 'km']][prim]; $t('#rl-a').textContent = sec[0]; $t('#rl-al').textContent = sec[1];
       $t('#rl-c').textContent = S.dist > 50 ? (isRun ? paceOf(S.moving, S.dist) : fmt(S.dist / S.moving * 3.6, 1)) : '--'; targetUI(); };
@@ -172,21 +174,22 @@ Screens.runLive = {
         const left = Math.max(0, ph.s - S.phaseT); t.className = 'rl-target ' + ph.k; t.innerHTML = `<div class="between"><span>${ph.k === 'fast' ? 'FORTE' : 'LEVE'} · tiro ${ph.n} de ${S.plan.length / 2}</span><b class="num">${hms(left)}</b></div><div class="rl-tbar"><i style="width:${(S.phaseT / ph.s) * 100}%"></i></div>`; } };
     const onPos = p => { const { latitude: la, longitude: lo, accuracy: acc, speed, altitude: alt, altitudeAccuracy: aacc } = p.coords; const now = p.timestamp || Date.now(); fix = [la, lo];
       gpsUI(acc <= 20 ? `GPS forte · ±${Math.round(acc)} m` : acc <= 40 ? `GPS médio · ±${Math.round(acc)} m` : `GPS fraco · ±${Math.round(acc)} m`, acc <= 20 ? '#A3FF12' : acc <= 40 ? '#FFC23D' : '#FF4D5E');
-      if (S.state === 'wait') { const b = $t('#rl-start'); if (b && acc <= 50) { b.disabled = false; $('b', b).textContent = resume ? 'Retomar' : 'Iniciar'; } if (map) { map.setView([la, lo], 16); dot.setLatLng([la, lo]).addTo(map); } return; }
-      if (map) dot.setLatLng([la, lo]).addTo(map);
+      if (S.state === 'wait') { const b = $t('#rl-start'); if (b && acc <= 50) { b.disabled = false; $('b', b).textContent = resume ? 'Retomar' : 'Iniciar'; } if (map) { if (follow) map.setView([la, lo], Math.max(map.getZoom(), 17)); accC.setLatLng([la, lo]).setRadius(acc).addTo(map); dot.setLatLng([la, lo]).addTo(map); } return; }
+      if (map) { accC.setLatLng([la, lo]).setRadius(acc).addTo(map); dot.setLatLng([la, lo]).addTo(map); dot.bringToFront(); if (follow && document.visibilityState === 'visible') map.panTo([la, lo], { animate: true }); }
       if ((S.state !== 'run' && S.state !== 'auto') || acc > 35) return; tick();
       if (S.last) { const d = haversine(S.last.c, [la, lo]); const dt = (now - S.last.t) / 1000; if (dt <= 0) return; const v = d / dt;
         if (v > (isRun ? 12 : 30)) return;
-        const moving = (speed != null && speed > .8) || (d >= 3 && v > .8);
+        const moving = (speed != null && speed > .8) || (d >= Math.max(3, acc * .5) && v > .8);
         if (moving) { S.lastMove = Date.now(); if (S.state === 'auto') { S.state = 'run'; S.lastT = Date.now(); $t('#rl-ap').hidden = true; Voice.say('Retomando'); haptic(12); } }
-        if (S.state !== 'run' || d < 2) { S.last = { c: [la, lo], t: now }; return; }
+        if (S.state !== 'run') { S.last = { c: [la, lo], t: now }; return; }
+        if (d < Math.max(2, Math.min(acc * .5, 8)) && !(speed > 1)) return; // ruído do GPS parado: mantém o ponto anterior
         S.dist += d; $t('#rl-b').textContent = isRun ? (speed > .6 ? paceStr(1000 / speed / 60) : paceOf(dt, d)) : fmt((speed || v) * 3.6, 1);
         if (alt != null && (aacc == null || aacc <= 15)) { S.alt = S.alt == null ? alt : S.alt * .7 + alt * .3; if (S._alt0 == null) S._alt0 = S.alt; if (S.alt - S._alt0 > 1.5) { S.elev += S.alt - S._alt0; S._alt0 = S.alt; } else if (S.alt < S._alt0) S._alt0 = S.alt; }
         while (S.dist >= S.kmMark) { const sp = S.moving - S.kmT; S.splits.push(Math.round(sp)); S.kmT = S.moving; const k = S.kmMark / 1000;
           toast(`${k} km · ${isRun ? paceStr(sp / 60) + '/km' : hms(sp)}`, 'route'); beep(880, .15, 2); haptic([15, 40, 15]);
           Voice.say(`${k} ${k > 1 ? 'quilômetros' : 'quilômetro'}. Tempo ${Voice.dur(S.moving)}. ${isRun ? 'Último quilômetro em ' + Voice.pace(sp) : ''}`); S.kmMark += 1000; }
         if (S.mode === 'dist' && !S.hit && S.dist >= S.target * 1000) { S.hit = true; beep(990, .3, 3); haptic([30, 60, 30]); Voice.say(`Meta de ${fmt(S.target, S.target % 1 ? 1 : 0)} quilômetros concluída. Mandou bem!`); toast('Meta de distância concluída!', 'trophy'); } }
-      S.last = { c: [la, lo], t: now }; S.pts.push([+la.toFixed(6), +lo.toFixed(6)]); if (line && document.visibilityState === 'visible') { line.addLatLng([la, lo]); map.panTo([la, lo], { animate: true }); } else if (line) line.addLatLng([la, lo]); upd(); persist(); liveNote(); };
+      S.last = { c: [la, lo], t: now }; S.pts.push([+la.toFixed(6), +lo.toFixed(6)]); if (line) { line.addLatLng([la, lo]); if (!startM && S.pts.length) startM = L.circleMarker(S.pts[0], { radius: 6, color: '#0B0B0B', weight: 3, fillColor: '#fff', fillOpacity: 1 }).addTo(map); } upd(); persist(); liveNote(); };
     const onErr = e => { if (e.code === 1) { gpsUI('Localização bloqueada', '#FF4D5E'); $t('#rl-ctrl').innerHTML = `<div class="rx-glass" style="text-align:center;margin:0"><div class="h3">Precisamos da sua localização</div><p class="muted small" style="margin:8px 0 12px;line-height:1.5">${Native.on ? 'Permita a localização “Sempre” (ou “Ao usar o app”) para o OraGym gravar o percurso mesmo com a tela bloqueada.' : 'No iPhone: Ajustes › Privacidade › Serviços de Localização › Safari › “Ao Usar o App”. Depois recarregue a página.'}</p>${Native.on ? '<button class="btn btn-white btn-sm" id="rl-opens">Abrir ajustes</button> ' : ''}<button class="btn btn-ghost btn-sm" data-push="manualAct" data-params='{"id":"${id}"}'>Registrar manualmente</button></div>`; const os = $t('#rl-opens'); if (os) os.onclick = () => Native.openSettings(); }
       else gpsUI('Sem sinal de GPS — vá para um lugar aberto', '#FF4D5E'); };
     if (Native.on) Native.watch(onPos, onErr).then(w => { watch = w; if (!el.isConnected) Native.unwatch(w); });
@@ -213,7 +216,7 @@ Screens.runLive = {
     const onVis = async () => { if (document.visibilityState !== 'visible' || !el.isConnected) return; if (S.state === 'run' || S.state === 'auto' || S.state === 'pause') { try { lock = await keepAwake(); } catch (e) {} }
       if (S.state === 'run' || S.state === 'auto') { const gap = (Date.now() - (S.lastT || Date.now())) / 1000; S.lastMove = Date.now(); if (S.state === 'auto') { S.state = 'run'; S.lastT = Date.now(); $t('#rl-ap').hidden = true; }
         if (gap > 20 && !Native.on) toast('O GPS fica pausado com a tela bloqueada — o trecho foi ligado em linha reta', 'pin');
-        if (line && S.pts.length) { line.setLatLngs(S.pts); try { map.panTo(S.pts[S.pts.length - 1]); } catch (e) {} }
+        if (line && S.pts.length) { line.setLatLngs(S.pts); try { if (follow) map.panTo(S.pts[S.pts.length - 1]); } catch (e) {} }
         try { navigator.geolocation.getCurrentPosition(onPos, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }); } catch (e) {} } persist(true); };
     document.addEventListener('visibilitychange', onVis);
     const onHide = () => { if (document.visibilityState === 'hidden') { persist(true); liveNote(true); } }; document.addEventListener('visibilitychange', onHide); window.addEventListener('pagehide', onHide);
@@ -251,6 +254,8 @@ Screens.runLive = {
         if (e.target.closest('[data-rmode]')) { close(); customRunSheet(() => { Object.assign(S, { mode: runPick.mode, target: runPick.target, plan: runPick.mode === 'int' ? intervalPlan(runPick) : null }); waitUI(); targetUI(); }); } }), { label: 'Ajustes' }); };
     $t('#rl-close').onclick = async () => { if (S.state === 'wait') { el._cleanup(); return Nav.back(); } if (S.dist < 10) { if (await confirmDialog('Sair da corrida?', 'Ainda não há percurso gravado.', 'Sair', true)) { clearSaved(); el._cleanup(); Nav.back(); } return; }
       if (S.state === 'run' || S.state === 'auto') paused(); toast('Pause e segure o quadrado para finalizar, ou descarte', 'stop'); };
+    $t('#rl-rec').onclick = () => { follow = true; $t('#rl-rec').classList.remove('on'); const c = fix || (S.pts.length ? S.pts[S.pts.length - 1] : null); if (map && c) map.setView(c, Math.max(map.getZoom(), 17), { animate: true }); haptic(5); };
+    $t('#rl-col').onclick = () => { const big = el.classList.toggle('rl-big'); $t('#rl-col').innerHTML = icon(big ? 'minus' : 'expand', 18); $t('#rl-col').setAttribute('aria-label', big ? 'Mostrar painel completo' : 'Mostrar mapa maior'); setTimeout(() => { try { map && map.invalidateSize(); const c = fix || S.pts[S.pts.length - 1]; if (follow && c) map.panTo(c); } catch (e) {} }, 340); haptic(5); };
     waitUI(); upd();
   },
   unmount(el) { el._cleanup && el._cleanup(); },

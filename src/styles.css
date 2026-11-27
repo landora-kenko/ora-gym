@@ -807,7 +807,7 @@ input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and
 .rx-hist{display:flex;align-items:center;gap:12px;margin-top:14px}
 /* ao vivo */
 .rl-map{position:absolute;inset:0;background:#0A0F0A}
-.rl-shade{position:absolute;inset:0;z-index:400;pointer-events:none;background:linear-gradient(180deg,rgba(6,8,6,.75),transparent 22%,transparent 40%,rgba(6,8,6,.94) 66%)}
+.rl-shade{position:absolute;inset:0;z-index:400;pointer-events:none;background:linear-gradient(180deg,rgba(6,8,6,.7),transparent 16%,transparent 46%,rgba(6,8,6,.92) 70%);transition:opacity .3s}
 .rl-gps{border-radius:999px;padding:9px 14px;font-size:12.5px;font-weight:600;display:flex;gap:8px;align-items:center;min-width:0;max-width:calc(100% - 120px)}
 .rl-gps span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rl-target{position:absolute;left:16px;right:16px;top:calc(var(--safe-top) + 72px);z-index:500;padding:12px 16px;border-radius:20px;background:rgba(10,13,10,.72);border:1px solid rgba(212,255,58,.25);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);font-size:13px;font-weight:600;max-width:560px;margin:0 auto}
@@ -901,3 +901,22 @@ html.native input,html.native textarea{-webkit-user-select:text;user-select:text
 
 /* mapas: tiles claros do OpenStreetMap viram tema escuro */
 .rx-tiles{filter:invert(1) hue-rotate(180deg) brightness(.82) contrast(.92) saturate(.35)}
+
+/* mapa ao vivo: botões, modo mapa grande */
+.rl-mapbtns{position:absolute;right:16px;z-index:520;bottom:calc(env(safe-area-inset-bottom) + 400px);display:flex;flex-direction:column;gap:8px;transition:bottom .3s}
+.rl-mapbtns .icon-btn{width:44px;height:44px}
+#rl-rec.on{background:#D4FF3A;color:#0A0D04}
+.rl-big .rl-primary,.rl-big .rl-tip,.rl-big .rl-modechip{display:none}
+.rl-big .rl-panel{bottom:calc(env(safe-area-inset-bottom) + 12px)}
+.rl-big .rl-ctrl{margin-top:10px;min-height:0}
+.rl-big .rl-pause{width:70px;height:70px}
+.rl-big .rl-sq,.rl-big .rl-hold{width:50px;height:50px}
+.rl-big .rl-shade{opacity:.45}
+.rl-big .rl-mapbtns{bottom:calc(env(safe-area-inset-bottom) + 210px)}
+.leaflet-container .leaflet-control-attribution{margin-bottom:2px}
+@media (max-height:700px){ .rl-primary b{font-size:72px} .rl-mapbtns{bottom:calc(env(safe-area-inset-bottom) + 360px)} }
+/* o ponto e o trajeto ficam na parte de cima, acima dos números */
+.rl-map{bottom:auto;height:62%;transition:height .3s}
+.rl-big .rl-map{height:100%}
+.rl-shade{background:linear-gradient(180deg,rgba(6,8,6,.7),transparent 16%,transparent 44%,rgba(6,8,6,.85) 58%,#060806 64%)}
+.rl-big .rl-shade{background:linear-gradient(180deg,rgba(6,8,6,.7),transparent 16%,transparent 60%,rgba(6,8,6,.9) 82%);opacity:1}
