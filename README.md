@@ -29,6 +29,19 @@ python3 build.py
 firebase deploy --only hosting,firestore
 ```
 
+## App instalado (iPhone e Android)
+
+O mesmo código vira app nativo com [Capacitor](https://capacitorjs.com) (pastas `android/` e `ios/`).
+No app instalado a corrida/pedal continua gravando com a tela bloqueada e mostra uma notificação ao vivo
+com tempo, distância (em km e metros) e ritmo.
+
+- **Android:** cada atualização na `main` gera o APK automaticamente (GitHub Actions).
+  Baixe em **Releases › android-latest › OraGym.apk** e instale no celular.
+- **iPhone:** o build roda no [Codemagic](https://codemagic.io) (não precisa de Mac) usando o `codemagic.yaml`
+  e vai para o TestFlight. Requer conta Apple Developer.
+
+Para testar com Android Studio/Xcode: `npm ci && npm run android` (ou `npm run ios` num Mac).
+
 ## Testar localmente sem Firebase
 
 Abra `docs/index.html` direto no navegador (file://) — o app usa um banco local no próprio navegador para testes.

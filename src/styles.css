@@ -891,3 +891,10 @@ input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and
 
 .rs-sec{display:flex;justify-content:center;gap:4px;width:100%}
 .rs-sec .btn{flex:none!important;background:none!important;border:0!important;height:34px;white-space:nowrap;padding:0 12px}
+
+/* ---------- App nativo (Capacitor) ---------- */
+html.native .ob-or,html.native .ob-google{display:none!important}
+html.native-android{--safe-top:36px}
+html.native-android .tabbar{bottom:calc(16px + env(safe-area-inset-bottom))}
+html.native body{-webkit-user-select:none;user-select:none}
+html.native input,html.native textarea{-webkit-user-select:text;user-select:text}

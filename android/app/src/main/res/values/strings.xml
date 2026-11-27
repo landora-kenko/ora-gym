@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OraGym</string>
+    <string name="title_activity_main">OraGym</string>
+    <string name="package_name">br.com.oragym.app</string>
+    <string name="custom_url_scheme">br.com.oragym.app</string>
+    <string name="capacitor_background_geolocation_notification_channel_name">Atividade em andamento</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_run</string>
+    <string name="capacitor_background_geolocation_notification_color">#D4FF3A</string>
+</resources>

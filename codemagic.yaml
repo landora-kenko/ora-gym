@@ -1,0 +1,46 @@
+# Build do app iPhone na nuvem (sem precisar de Mac) — https://codemagic.io
+# Pré-requisitos: conta Apple Developer (US$ 99/ano) e, no Codemagic,
+# a integração "App Store Connect" chamada "OraGym ASC" (Team settings › Integrations).
+# O app sobe para o TestFlight, e você instala no iPhone pelo app TestFlight.
+workflows:
+  ios-testflight:
+    name: OraGym iOS (TestFlight)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: OraGym ASC
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: br.com.oragym.app
+      vars:
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+      node: 20
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events: [push]
+      branch_patterns:
+        - pattern: main
+    scripts:
+      - name: Dependências e build do site
+        script: |
+          npm ci
+          python3 build.py
+          npx cap sync ios
+      - name: Assinatura
+        script: xcode-project use-profiles
+      - name: Número da versão
+        script: |
+          cd ios/App
+          agvtool new-version -all $BUILD_NUMBER
+      - name: Compilar IPA
+        script: |
+          xcode-project build-ipa --workspace "$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

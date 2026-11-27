@@ -1,0 +1,22 @@
+{
+  "appId": "br.com.oragym.app",
+  "appName": "OraGym",
+  "webDir": "docs",
+  "backgroundColor": "#0B0B0B",
+  "android": {
+    "useLegacyBridge": true,
+    "backgroundColor": "#0B0B0B"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0B0B0B"
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "iconColor": "#E3192B"
+    }
+  }
+}

@@ -164,7 +164,7 @@ Screens.runLive = {
       gpsUI(acc <= 20 ? `GPS forte · ±${Math.round(acc)} m` : acc <= 40 ? `GPS médio · ±${Math.round(acc)} m` : `GPS fraco · ±${Math.round(acc)} m`, acc <= 20 ? '#A3FF12' : acc <= 40 ? '#FFC23D' : '#FF4D5E');
       if (S.state === 'wait') { const b = $t('#rl-start'); if (b && acc <= 50) { b.disabled = false; $('b', b).textContent = resume ? 'Retomar' : 'Iniciar'; } if (map) { map.setView([la, lo], 16); dot.setLatLng([la, lo]).addTo(map); } return; }
       if (map) dot.setLatLng([la, lo]).addTo(map);
-      if ((S.state !== 'run' && S.state !== 'auto') || acc > 35) return;
+      if ((S.state !== 'run' && S.state !== 'auto') || acc > 35) return; tick();
       if (S.last) { const d = haversine(S.last.c, [la, lo]); const dt = (now - S.last.t) / 1000; if (dt <= 0) return; const v = d / dt;
         if (v > (isRun ? 12 : 30)) return;
         const moving = (speed != null && speed > .8) || (d >= 3 && v > .8);
@@ -176,37 +176,50 @@ Screens.runLive = {
           toast(`${k} km · ${isRun ? paceStr(sp / 60) + '/km' : hms(sp)}`, 'route'); beep(880, .15, 2); haptic([15, 40, 15]);
           Voice.say(`${k} ${k > 1 ? 'quilômetros' : 'quilômetro'}. Tempo ${Voice.dur(S.moving)}. ${isRun ? 'Último quilômetro em ' + Voice.pace(sp) : ''}`); S.kmMark += 1000; }
         if (S.mode === 'dist' && !S.hit && S.dist >= S.target * 1000) { S.hit = true; beep(990, .3, 3); haptic([30, 60, 30]); Voice.say(`Meta de ${fmt(S.target, S.target % 1 ? 1 : 0)} quilômetros concluída. Mandou bem!`); toast('Meta de distância concluída!', 'trophy'); } }
-      S.last = { c: [la, lo], t: now }; S.pts.push([+la.toFixed(6), +lo.toFixed(6)]); if (line) { line.addLatLng([la, lo]); map.panTo([la, lo], { animate: true }); } upd(); persist(); };
-    const onErr = e => { if (e.code === 1) { gpsUI('Localização bloqueada', '#FF4D5E'); $t('#rl-ctrl').innerHTML = `<div class="rx-glass" style="text-align:center;margin:0"><div class="h3">Precisamos da sua localização</div><p class="muted small" style="margin:8px 0 12px;line-height:1.5">No iPhone: Ajustes › Privacidade › Serviços de Localização › Safari › “Ao Usar o App”. Depois recarregue a página.</p><button class="btn btn-white btn-sm" data-push="manualAct" data-params='{"id":"${id}"}'>Registrar manualmente</button></div>`; }
+      S.last = { c: [la, lo], t: now }; S.pts.push([+la.toFixed(6), +lo.toFixed(6)]); if (line && document.visibilityState === 'visible') { line.addLatLng([la, lo]); map.panTo([la, lo], { animate: true }); } else if (line) line.addLatLng([la, lo]); upd(); persist(); liveNote(); };
+    const onErr = e => { if (e.code === 1) { gpsUI('Localização bloqueada', '#FF4D5E'); $t('#rl-ctrl').innerHTML = `<div class="rx-glass" style="text-align:center;margin:0"><div class="h3">Precisamos da sua localização</div><p class="muted small" style="margin:8px 0 12px;line-height:1.5">${Native.on ? 'Permita a localização “Sempre” (ou “Ao usar o app”) para o OraGym gravar o percurso mesmo com a tela bloqueada.' : 'No iPhone: Ajustes › Privacidade › Serviços de Localização › Safari › “Ao Usar o App”. Depois recarregue a página.'}</p>${Native.on ? '<button class="btn btn-white btn-sm" id="rl-opens">Abrir ajustes</button> ' : ''}<button class="btn btn-ghost btn-sm" data-push="manualAct" data-params='{"id":"${id}"}'>Registrar manualmente</button></div>`; const os = $t('#rl-opens'); if (os) os.onclick = () => Native.openSettings(); }
       else gpsUI('Sem sinal de GPS — vá para um lugar aberto', '#FF4D5E'); };
-    if (!('geolocation' in navigator)) onErr({ code: 1 }); else watch = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    if (Native.on) Native.watch(onPos, onErr).then(w => { watch = w; if (!el.isConnected) Native.unwatch(w); });
+    else if (!('geolocation' in navigator)) onErr({ code: 1 }); else watch = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    /* tempo em movimento a partir do relógio do sistema (continua certo mesmo se o app ficar em segundo plano) */
+    const tick = () => { if (S.state !== 'run') return 0; const n = Date.now(); const dt = Math.max(0, (n - S.lastT) / 1000); S.moving += dt; S.lastT = n; return dt; };
+    /* notificação ao vivo (app nativo): Android atualiza a cada 3 s; iPhone a cada km e nas pausas, só com o app em segundo plano */
+    let lastNote = 0, lastNoteKm = -1;
+    const liveNote = (force) => { if (!Native.on || S.state === 'wait' || S.state === 'done') return; const n = Date.now(); const k = Math.floor(S.dist / 1000);
+      if (Native.platform === 'ios' && !force && (document.visibilityState === 'visible' || k === lastNoteKm)) return;
+      if (Native.platform === 'android' && !force && n - lastNote < 3000) return; lastNote = n; lastNoteKm = k;
+      const m = Math.round(S.dist); const st = S.state === 'pause' ? 'Pausada' : S.state === 'auto' ? 'Pausa automática' : (isRun ? 'Correndo' : 'Pedalando');
+      const pace = S.dist > 50 ? (isRun ? `pace ${paceOf(S.moving, S.dist)}/km` : `${fmt(S.dist / S.moving * 3.6, 1)} km/h`) : 'calculando ritmo';
+      const tgt = S.mode === 'dist' ? ` · meta ${fmt(S.target, S.target % 1 ? 1 : 0)} km` : S.mode === 'time' ? ` · meta ${S.target} min` : S.mode === 'int' && S.plan[S.phase] ? ` · ${S.plan[S.phase].k === 'fast' ? 'FORTE' : 'leve'} ${hms(Math.max(0, S.plan[S.phase].s - S.phaseT))}` : '';
+      Native.liveNotify(`${st} · ${hms(S.moving)}`, `${fmt(S.dist / 1000, 2)} km (${m.toLocaleString('pt-BR')} m) · ${pace}${tgt}`); };
     const clock = setInterval(() => { if (!el.isConnected) return; const n = Date.now();
-      if (S.state === 'run') { const dt = (n - S.lastT) / 1000; S.moving += dt; S.lastT = n;
+      if (S.state === 'run') { const dt = tick();
         if (S.mode === 'int' && S.plan[S.phase]) { S.phaseT += dt; const ph = S.plan[S.phase]; if (S.phaseT >= ph.s) { S.phase++; S.phaseT = 0; const nx = S.plan[S.phase]; haptic([30, 60, 30]); beep(nx && nx.k === 'fast' ? 990 : 660, .3, 2); Voice.say(nx ? (nx.k === 'fast' ? `Tiro ${nx.n}. Acelera!` : 'Recupera. Ritmo leve.') : 'Intervalado concluído. Desaqueça.'); } }
         if (S.mode === 'time' && !S.hit && S.moving >= S.target * 60) { S.hit = true; beep(990, .3, 3); Voice.say(`Meta de ${S.target} minutos concluída!`); toast('Meta de tempo concluída!', 'trophy'); }
         if (runPrefs().auto && S.lastMove && n - S.lastMove > 10000) { S.state = 'auto'; $t('#rl-ap').hidden = false; Voice.say('Pausa automática'); }
-        upd(); persist(); } }, 500);
+        upd(); persist(); liveNote(); } }, 500);
     // Ao voltar de tela bloqueada/app em segundo plano: reativa a tela ligada, não marca pausa automática por engano
     // e busca a posição atual para ligar o trecho perdido (o navegador não roda GPS com a tela bloqueada).
     const onVis = async () => { if (document.visibilityState !== 'visible' || !el.isConnected) return; if (S.state === 'run' || S.state === 'auto' || S.state === 'pause') { try { lock = await keepAwake(); } catch (e) {} }
       if (S.state === 'run' || S.state === 'auto') { const gap = (Date.now() - (S.lastT || Date.now())) / 1000; S.lastMove = Date.now(); if (S.state === 'auto') { S.state = 'run'; S.lastT = Date.now(); $t('#rl-ap').hidden = true; }
-        if (gap > 20) toast('O GPS fica pausado com a tela bloqueada — o trecho foi ligado em linha reta', 'pin');
+        if (gap > 20 && !Native.on) toast('O GPS fica pausado com a tela bloqueada — o trecho foi ligado em linha reta', 'pin');
+        if (line && S.pts.length) { line.setLatLngs(S.pts); try { map.panTo(S.pts[S.pts.length - 1]); } catch (e) {} }
         try { navigator.geolocation.getCurrentPosition(onPos, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }); } catch (e) {} } persist(true); };
     document.addEventListener('visibilitychange', onVis);
-    const onHide = () => { if (document.visibilityState === 'hidden') persist(true); }; document.addEventListener('visibilitychange', onHide); window.addEventListener('pagehide', onHide);
-    el._cleanup = () => { clearInterval(clock); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide); if (watch != null) navigator.geolocation.clearWatch(watch); try { lock && lock.release(); } catch (e) {} try { map && map.remove(); } catch (e) {} };
+    const onHide = () => { if (document.visibilityState === 'hidden') { persist(true); liveNote(true); } }; document.addEventListener('visibilitychange', onHide); window.addEventListener('pagehide', onHide);
+    el._cleanup = () => { clearInterval(clock); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide); if (watch != null) { if (Native.on) Native.unwatch(watch); else navigator.geolocation.clearWatch(watch); } Native.on && Native.liveClear(); try { lock && lock.release(); } catch (e) {} try { map && map.remove(); } catch (e) {} };
     const ctrl = $t('#rl-ctrl');
     const waitUI = () => { ctrl.innerHTML = `${resume ? `<div class="rl-resume">${icon('refresh', 15)}Corrida de ${km2(saved.dist)} km em andamento <button class="link" id="rl-disc">Descartar</button></div>` : `<div class="rl-modechip" id="rl-mode">${icon('flag', 14)}${S.mode === 'free' ? 'Corrida livre' : S.mode === 'dist' ? `Meta ${fmt(S.target, S.target % 1 ? 1 : 0)} km` : S.mode === 'time' ? `Meta ${S.target} min` : intervalLabel({ reps: S.plan.length / 2, fast: S.plan[0].s / 60, slow: S.plan[1].s / 60 })}</div>`}
-      <button class="rl-go" id="rl-start" disabled><span>${icon('play', 30)}</span><b>Aguardando GPS</b></button><p class="rl-tip">Mantenha a tela ligada — no navegador o GPS para quando o celular bloqueia.</p>`;
+      <button class="rl-go" id="rl-start" disabled><span>${icon('play', 30)}</span><b>Aguardando GPS</b></button><p class="rl-tip">${Native.on ? 'Pode bloquear a tela: o GPS continua gravando e a notificação mostra tempo e distância.' : 'Mantenha a tela ligada — no navegador o GPS para quando o celular bloqueia. No app instalado ele continua.'}</p>`;
       const ds = $t('#rl-disc'); if (ds) ds.onclick = () => { clearSaved(); resume = false; waitUI(); toast('Corrida anterior descartada', 'trash'); };
       $t('#rl-start').onclick = start; if (fix) { const b = $t('#rl-start'); b.disabled = false; $('b', b).textContent = resume ? 'Retomar' : 'Iniciar'; } };
     const running = () => { ctrl.innerHTML = `<div class="rl-btns"><button class="icon-btn rl-sq" id="rl-lockb" aria-label="Bloquear toques">${icon('lock', 20)}</button><button class="rl-pause" id="rl-pause" aria-label="Pausar">${icon('pause', 32)}</button><button class="icon-btn rl-sq" id="rl-say" aria-label="Ouvir status">${icon('volume', 20)}</button></div>`;
       $t('#rl-pause').onclick = paused; $t('#rl-say').onclick = () => Voice.say(`${fmt(S.dist / 1000, 2).replace(',', ' vírgula ')} quilômetros em ${Voice.dur(S.moving)}${S.dist > 200 && isRun ? '. Pace médio ' + Voice.pace(S.moving / (S.dist / 1000)) : ''}`);
       $t('#rl-lockb').onclick = () => { const ov = document.createElement('div'); ov.className = 'rl-lock'; ov.innerHTML = `<div>${icon('lock', 26)}<b>Toques bloqueados</b><span>Segure para desbloquear</span><button class="hold-btn btn btn-white"><span class="fill"></span><span style="position:relative">Segure</span></button></div>`; el.appendChild(ov); const hb = $('button', ov), f = $('.fill', hb); let an;
         hb.addEventListener('pointerdown', () => { an = A(f, [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 700, easing: 'linear' }); an.finished.then(() => { if (!an._c) ov.remove(); }).catch(() => {}); }); const up = () => { if (an && an.playState === 'running') { an._c = true; an.cancel(); } }; hb.addEventListener('pointerup', up); hb.addEventListener('pointerleave', up); }; };
-    const paused = () => { S.state = 'pause'; haptic(12); S.last = null; persist(true); Voice.say('Corrida pausada'); $t('#rl-ap').hidden = true;
+    const paused = () => { tick(); S.state = 'pause'; haptic(12); S.last = null; persist(true); setTimeout(() => liveNote(true), 50); Voice.say('Corrida pausada'); $t('#rl-ap').hidden = true;
       ctrl.innerHTML = `<div class="rl-btns"><button class="icon-btn rl-sq" id="rl-trash" aria-label="Descartar corrida">${icon('trash', 19)}</button><button class="rl-pause play" id="rl-resume" aria-label="Retomar">${icon('play', 32)}</button><button class="rl-hold hold-btn" id="rl-finish" aria-label="Segure para finalizar"><span class="fill"></span><span style="position:relative">${icon('stop', 20)}</span></button></div><p class="rl-tip">Segure o quadrado para finalizar</p>`;
-      $t('#rl-resume').onclick = () => { S.state = 'run'; S.lastT = Date.now(); S.lastMove = Date.now(); running(); Voice.say('Retomando'); };
+      $t('#rl-resume').onclick = () => { S.state = 'run'; S.lastT = Date.now(); S.lastMove = Date.now(); running(); Voice.say('Retomando'); liveNote(true); };
       $t('#rl-trash').onclick = async () => { if (await confirmDialog('Descartar corrida?', 'O percurso gravado não será salvo.', 'Descartar', true)) { clearSaved(); el._cleanup(); Nav.back(); } };
       const fb = $t('#rl-finish'), fill = $('.fill', fb); let ha;
       fb.addEventListener('pointerdown', () => { ha = A(fill, [{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }], { duration: Motion.reduced ? 1 : 800, easing: 'linear' }); ha.finished.then(() => { if (!ha._c) done(); }).catch(() => {}); });
@@ -216,7 +229,7 @@ Screens.runLive = {
       Voice.say(' '); const cn = document.createElement('div'); cn.className = 'rl-count'; cn.innerHTML = `<b class="num">3</b>`; el.appendChild(cn);
       for (const n of [3, 2, 1]) { $('b', cn).textContent = n; beep(660, .12); haptic(10); A($('b', cn), [{ transform: 'scale(1.6)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], { duration: 500, easing: 'out' }); await wait(Motion.reduced ? 200 : 900); }
       beep(990, .3); cn.remove(); lock = await keepAwake(); S.state = 'run'; S.startedAt = Date.now(); S.lastT = Date.now(); S.lastMove = Date.now();
-      Voice.say(S.mode === 'int' ? 'Intervalado iniciado. Tiro 1, acelera!' : 'Corrida iniciada'); if (fix) { S.last = { c: fix, t: Date.now() }; S.pts.push(fix); } running(); persist(true); };
+      Voice.say(S.mode === 'int' ? 'Intervalado iniciado. Tiro 1, acelera!' : 'Corrida iniciada'); if (fix) { S.last = { c: fix, t: Date.now() }; S.pts.push(fix); } running(); persist(true); liveNote(true); };
     const done = () => { if (S.dist < 50) { toast('Distância muito curta para salvar', 'x'); return; } S.state = 'done'; el._cleanup(); clearSaved();
       Nav.push('runSummary', { act: { sport: id, title: isRun ? runTitle(S.startedAt) : 'Pedal', startedAt: S.startedAt, duration: Math.round(S.moving), distance: Math.round(S.dist), route: downsample(S.pts, 700), splits: S.splits, elev: Math.round(S.elev), mode: S.mode, target: S.target || null } }); };
     $t('#rl-prim').onclick = () => { prim = (prim + 1) % 3; haptic(5); upd(); A($t('#rl-pv'), [{ transform: 'translateY(10px)', opacity: .2 }, { transform: 'none', opacity: 1 }], { spring: [300, 22] }); };

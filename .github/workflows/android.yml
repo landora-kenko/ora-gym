@@ -1,0 +1,76 @@
+# Gera o app Android (APK) a cada atualização e publica em
+# https://github.com/landora-kenko/ora-gym/releases/tag/android-latest
+name: App Android (APK)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'docs/**'
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'index.dev.html'
+      - 'build.py'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Dependências
+        run: npm ci
+
+      - name: Build do site e cópia para o app
+        run: |
+          python3 build.py
+          npx cap sync android
+
+      - name: Compilar APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Renomear
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk OraGym.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OraGym-android
+          path: OraGym.apk
+
+      - name: Publicar em Releases (android-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: OraGym para Android (teste)
+          prerelease: true
+          make_latest: false
+          files: OraGym.apk
+          body: |
+            APK de teste do OraGym, gerado automaticamente a partir do commit ${{ github.sha }}.
+            No Android: baixe o OraGym.apk, abra e permita "instalar apps desta fonte".
+            Para atualizar, basta instalar o novo por cima (não precisa desinstalar).
