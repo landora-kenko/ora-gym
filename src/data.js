@@ -5,7 +5,7 @@
    ============================================================ */
 const SPORTS = {
   musculacao: { id: 'musculacao', name: 'Musculação', short: 'Força', icon: 'dumbbell', c: '#E3192B', c2: '#9E0B14', tagline: 'Cada série conta.' },
-  corrida: { id: 'corrida', name: 'Corrida', short: 'Corrida', icon: 'run', c: '#E8ECE6', c2: '#7C8784', tagline: 'Cada quilômetro conta uma história.' },
+  corrida: { id: 'corrida', name: 'Corrida', short: 'Corrida', icon: 'run', c: '#D4FF3A', c2: '#6E8F12', tagline: 'Cada quilômetro conta uma história.' },
   ciclismo: { id: 'ciclismo', name: 'Ciclismo', short: 'Pedal', icon: 'bike', c: '#FF7426', c2: '#C2410C', tagline: 'A estrada é o seu ritmo.' },
   calistenia: { id: 'calistenia', name: 'Calistenia', short: 'Calistenia', icon: 'rings', c: '#A3FF12', c2: '#4D7C0F', tagline: 'O corpo é o equipamento.' },
   futebol: { id: 'futebol', name: 'Futebol', short: 'Futebol', icon: 'ball', c: '#FFC23D', c2: '#B45309', tagline: 'O time joga junto.' },

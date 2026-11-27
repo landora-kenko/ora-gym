@@ -14,7 +14,7 @@ Screens.profile = {
         <button class="icon-btn glass" aria-label="Configurações" data-push="settings" data-e="1" data-ek="fade">${icon('settings', 20)}</button></div>
       <div class="page" style="position:absolute;left:0;right:0;bottom:22px;padding:0 20px">
         <div class="row" style="gap:14px;margin-bottom:14px" data-e="2">${meAv('lg')}<div><div class="row" style="gap:6px"><span class="tag">${me.private ? icon('lock', 12, 2) + 'Privado' : 'Público'}</span><span class="tag neon">${esc(me.level || 'Intermediário')}</span></div><div class="muted small" style="margin-top:8px">@${esc(me.handle)}</div></div></div>
-        <h1 class="display pf-name" style="font-size:43px;margin:0 0 18px">${esc(me.name)}</h1>
+        <h1 class="display pf-name" style="font-size:clamp(30px,10.5vw,43px);margin:0 0 18px">${esc(me.name)}</h1>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);max-width:560px" data-e="4">${[[API.acts.length, 'Atividades'], [streak, 'Dias seguidos'], [got, 'Conquistas'], [mySports().length, 'Esportes']].map(x => `<div><div class="num" style="font-size:32px;line-height:1"><span data-count="${x[0]}">0</span></div><div class="muted" style="font-size:11px;margin-top:6px">${x[1]}</div></div>`).join('')}</div></div></div>
       <div class="pad page">
         ${me.bio ? `<p style="margin:4px 0 14px;line-height:1.55;color:#D3DCE8">${esc(me.bio)}</p>` : ''}

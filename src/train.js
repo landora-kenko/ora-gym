@@ -63,70 +63,6 @@ Screens.exercise = {
   mount(el, { n }) { const hist = []; API.acts.slice().reverse().forEach(a => { const s = (a.sets || []).filter(x => x.ex === n); if (s.length) hist.push([a.startedAt, Math.max(...s.map(x => x.kg || 0))]); }); const c = $('#exch', el); if (c && hist.length > 1) mountChart(c, hist.map(h => h[1]), { unit: 'kg', floor: true, tipLabel: i => shortDate(hist[i][0]) }); },
 };
 
-/* ---------------- Corrida / pedal com GPS real ---------------- */
-Screens.runLive = {
-  noSwipe: true,
-  render({ id = 'corrida' }) {
-    setAccent(id); const isRun = id === 'corrida';
-    return `<div style="position:absolute;inset:0;background:#0B141F" id="rl-map"></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,11,11,.75),transparent 24%,transparent 46%,rgba(11,11,11,.92) 70%);pointer-events:none;z-index:400"></div>
-    <div class="topbar" style="z-index:500"><button class="icon-btn glass" id="rl-close" aria-label="Fechar">${icon('back', 20, 2)}</button>
-      <div class="glass" style="border-radius:999px;padding:9px 14px;font-size:12.5px;font-weight:600;display:flex;gap:8px;align-items:center"><span class="dot" id="rl-gps" style="background:#FFC23D"></span><span id="rl-gpst">Procurando GPS…</span></div><span style="width:46px"></span></div>
-    <div class="live-col" style="position:absolute;left:16px;right:16px;bottom:22px;z-index:500">
-      <div style="text-align:center;margin-bottom:16px"><div class="live-num" style="font-size:84px" id="rl-time">00:00</div><div class="muted small">Tempo em movimento</div></div>
-      <div class="glass" style="border-radius:30px;padding:18px 10px;display:grid;grid-template-columns:repeat(3,1fr);text-align:center">
-        <div><div class="num" style="font-size:28px" id="rl-dist">0,00</div><div class="muted small">km</div></div>
-        <div style="border-left:1px solid var(--stroke);border-right:1px solid var(--stroke)"><div class="num" style="font-size:28px" id="rl-pace">--</div><div class="muted small">${isRun ? 'pace atual' : 'km/h'}</div></div>
-        <div><div class="num" style="font-size:28px" id="rl-avg">--</div><div class="muted small">${isRun ? 'pace médio' : 'média km/h'}</div></div></div>
-      <div id="rl-ctrl" style="display:flex;justify-content:center;gap:16px;margin-top:18px;min-height:84px;align-items:center"><button class="btn btn-white" id="rl-start" style="height:64px;padding:0 34px" disabled>${icon('play', 18)}Aguardando sinal…</button></div></div>`;
-  },
-  mount(el, { id = 'corrida' }) {
-    const isRun = id === 'corrida'; const color = isRun ? '#FFFFFF' : '#FF7426';
-    const S = { state: 'wait', pts: [], dist: 0, moving: 0, lastT: 0, last: null, startedAt: 0, splits: [], kmMark: 1000, kmT: 0, watch: null, fix: null, best: 999 };
-    let map = null, line = null, dot = null, lock = null, svgTimer = null;
-    const mapBox = $('#rl-map', el);
-    if (window.L) { try { map = L.map(mapBox, { zoomControl: false, attributionControl: true }).setView([-15.78, -47.93], 4);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, attribution: '© OpenStreetMap © CARTO' }).addTo(map);
-      line = L.polyline([], { color, weight: 5, opacity: .95 }).addTo(map); dot = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }); setTimeout(() => map.invalidateSize(), 300); } catch (e) { map = null; } }
-    if (!map) { svgTimer = setInterval(() => { if (S.pts.length > 1) mapBox.innerHTML = routeSVG(S.pts, { color }); }, 3000); }
-    const gpsUI = (txt, col) => { $('#rl-gpst', el).textContent = txt; $('#rl-gps', el).style.background = col; };
-    const upd = () => { $('#rl-time', el).textContent = hms(S.moving); $('#rl-dist', el).textContent = fmt(S.dist / 1000, 2);
-      const avg = S.dist > 20 ? (isRun ? paceOf(S.moving, S.dist) : fmt(S.dist / S.moving * 3.6, 1)) : '--'; $('#rl-avg', el).textContent = avg; };
-    const onPos = p => { const { latitude: la, longitude: lo, accuracy: acc, speed } = p.coords; const now = p.timestamp || Date.now(); S.fix = [la, lo];
-      gpsUI(acc <= 25 ? `GPS forte · ±${Math.round(acc)} m` : `GPS fraco · ±${Math.round(acc)} m`, acc <= 25 ? '#A3FF12' : '#FFC23D');
-      if (S.state === 'wait') { if (acc <= 50) { const b = $('#rl-start', el); b.disabled = false; b.innerHTML = `${icon('play', 18)}Iniciar`; } if (map) { map.setView([la, lo], 16); dot.setLatLng([la, lo]).addTo(map); } return; }
-      if (map) dot.setLatLng([la, lo]);
-      if (S.state !== 'run' || acc > 35) return;
-      if (S.last) { const d = haversine(S.last.c, [la, lo]); const dt = (now - S.last.t) / 1000; if (dt <= 0) return; const v = d / dt;
-        if (v > (isRun ? 12 : 30) || d < 2) return; S.dist += d; $('#rl-pace', el).textContent = isRun ? (speed > .5 ? paceStr(1000 / speed / 60) : paceOf(dt, d)) : fmt((speed || v) * 3.6, 1);
-        if (S.dist >= S.kmMark) { const sp = S.moving - S.kmT; S.splits.push(Math.round(sp)); S.kmT = S.moving; toast(`${S.kmMark / 1000} km · ${isRun ? paceStr(sp / 60) + '/km' : hms(sp)}`, 'route'); beep(880, .15, 2); haptic([15, 40, 15]); S.kmMark += 1000; } }
-      S.last = { c: [la, lo], t: now }; S.pts.push([+la.toFixed(6), +lo.toFixed(6)]); if (line) { line.addLatLng([la, lo]); map.panTo([la, lo], { animate: true }); } upd(); };
-    const onErr = e => { if (e.code === 1) { gpsUI('Permissão de localização negada', '#FF4D5E'); $('#rl-ctrl', el).innerHTML = `<div class="card" style="text-align:center"><div class="h3">Precisamos da sua localização</div><p class="muted small" style="margin:8px 0 12px">Libere a localização para este site nas configurações do navegador e tente de novo. Ou registre manualmente.</p><button class="btn btn-white btn-sm" data-push="manualAct" data-params='{"id":"${id}"}'>Adicionar manualmente</button></div>`; }
-      else gpsUI('Sem sinal de GPS — vá para área aberta', '#FF4D5E'); };
-    if (!('geolocation' in navigator)) onErr({ code: 1 }); else S.watch = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
-    setTimeout(() => { if (S.state === 'wait' && S.fix) { const b = $('#rl-start', el); if (b && b.disabled) { b.disabled = false; b.innerHTML = `${icon('play', 18)}Iniciar mesmo assim`; } } }, 12000);
-    const clock = setInterval(() => { if (S.state === 'run') { const n = Date.now(); S.moving += (n - S.lastT) / 1000; S.lastT = n; upd(); } }, 500);
-    el._cleanup = () => { clearInterval(clock); clearInterval(svgTimer); if (S.watch != null) navigator.geolocation.clearWatch(S.watch); try { lock && lock.release(); } catch (e) {} try { map && map.remove(); } catch (e) {} };
-    const ctrl = $('#rl-ctrl', el);
-    const running = () => { ctrl.innerHTML = `<button class="icon-btn" id="rl-pause" style="width:84px;height:84px;background:var(--accent);color:#0B0B0B;box-shadow:0 14px 36px -10px var(--accent)" aria-label="Pausar">${icon('pause', 30)}</button>`; $('#rl-pause', el).onclick = paused; };
-    const paused = () => { S.state = 'pause'; haptic(12); S.last = null;
-      ctrl.innerHTML = `<button class="icon-btn" id="rl-resume" style="width:74px;height:74px;background:var(--accent);color:#0B0B0B" aria-label="Retomar">${icon('play', 28)}</button><button class="btn hold-btn" id="rl-finish" style="height:74px;padding:0 26px;background:#fff;color:#0B0B0B"><span class="fill"></span><span style="position:relative">${icon('stop', 18)}</span><span style="position:relative">Segure para finalizar</span></button>`;
-      $('#rl-resume', el).onclick = () => { S.state = 'run'; S.lastT = Date.now(); running(); };
-      const fb = $('#rl-finish', el), fill = $('.fill', fb); let ha;
-      const down = () => { ha = A(fill, [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: Motion.reduced ? 1 : 900, easing: 'linear' }); ha.finished.then(() => { if (!ha._c) done(); }); };
-      const up = () => { if (ha && ha.playState === 'running') { ha._c = true; ha.cancel(); } };
-      fb.addEventListener('pointerdown', down); fb.addEventListener('pointerup', up); fb.addEventListener('pointerleave', up); fb.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); done(); } }); };
-    $('#rl-start', el).onclick = async () => {
-      const cn = document.createElement('div'); cn.style.cssText = 'position:absolute;inset:0;z-index:800;display:grid;place-items:center;background:rgba(4,8,14,.85)'; cn.innerHTML = `<div class="live-num" style="font-size:180px;color:var(--accent)">3</div>`; el.appendChild(cn);
-      for (const n of [3, 2, 1]) { $('.live-num', cn).textContent = n; beep(660, .12); haptic(10); A($('.live-num', cn), [{ transform: 'scale(1.5)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], { duration: 500, easing: 'out' }); await wait(Motion.reduced ? 200 : 900); }
-      beep(990, .3); cn.remove(); lock = await keepAwake(); S.state = 'run'; S.startedAt = Date.now(); S.lastT = Date.now(); if (S.fix) { S.last = { c: S.fix, t: Date.now() }; S.pts.push(S.fix); } running(); };
-    const done = () => { if (S.dist < 50) { toast('Distância muito curta para salvar', 'x'); return; } el._cleanup();
-      Nav.push('summary', { act: { sport: id, title: isRun ? 'Corrida' : 'Pedal', startedAt: S.startedAt, duration: Math.round(S.moving), distance: Math.round(S.dist), route: downsample(S.pts, 600), splits: S.splits } }); };
-    $('#rl-close', el).onclick = async () => { if (S.state === 'wait' || S.dist < 10) { el._cleanup(); return Nav.back(); } const was = S.state; S.state = 'pause'; if (await confirmDialog('Descartar atividade?', 'O percurso gravado não será salvo.', 'Descartar', true)) { el._cleanup(); Nav.back(); } else { S.state = was; S.lastT = Date.now(); } };
-  },
-  unmount(el) { el._cleanup && el._cleanup(); },
-};
-
 /* ---------------- Boxe, natação, futebol, calistenia ---------------- */
 Screens.genericLive = {
   noSwipe: true,
@@ -226,7 +162,7 @@ Screens.manualAct = {
     if (id === 'natacao') { a.distance = Math.round(n('m')); a.laps = n('laps') || undefined; a.stroke = v('stroke'); if (!a.distance) return toast('Informe a distância', 'x'); }
     if (id === 'boxe') a.rounds = n('rounds'); if (id === 'calistenia') a.reps = n('reps'); if (id === 'musculacao') a.volume = n('vol');
     if (id === 'futebol') Object.assign(a, { scoreFor: n('sf'), scoreAgainst: n('sa'), goals: n('g'), assists: n('as'), team: v('team').trim(), opponent: v('opp').trim() });
-    Nav.push('summary', { act: a }); }; },
+    Nav.push(id === 'corrida' || id === 'ciclismo' ? 'runSummary' : 'summary', { act: a }); }; },
 };
 
 /* ---------------- Resumo: salvar / publicar ---------------- */

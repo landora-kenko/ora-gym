@@ -62,7 +62,7 @@ async function commentsSheet(p, root) {
 function composePost({ sport, activity } = {}) {
   let sp = sport || mySports()[0]; let img = null;
   Sheet.open(`<h3 class="h2">Nova publicação</h3><div style="margin-top:16px">
-    <div class="field"><label>Esporte</label>${sportChips(sp, 'np', SPORT_IDS)}</div>
+    <div class="field"><label>Esporte</label>${sportChips(sp, 'np', mySports())}</div>
     ${activity ? `<div class="list-item" style="margin-bottom:12px"><span class="ico">${icon(SPORTS[activity.sport].icon, 20)}</span><div><div class="h3">${esc(activity.title)}</div><div class="muted small">${statLine(activity.sport, activity)}</div></div></div>` : ''}
     <div class="field"><label for="np-x">Legenda</label><textarea class="input" id="np-x" rows="4" maxlength="2000" placeholder="Conte como foi"></textarea></div>
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" data-np-photo>${icon('image', 18)}Adicionar foto</button><div class="np-prev"></div>
@@ -73,10 +73,11 @@ function composePost({ sport, activity } = {}) {
         try { const hide = API.me.privacy && API.me.privacy.hideRouteEnds; await API.createPost({ sport: sp, text, image: img, activity: activity ? { id: activity.id, title: activity.title, stats: publicStats(activity), route: activity.route ? downsample(hide ? trimRoute(activity.route) : activity.route, 120) : null, pr: !!activity.prCount } : null });
           close(); socialFilter = 'all'; socialScope = 'all'; Nav.go('social'); toast('Publicado'); } catch (x) { go.disabled = false; go.textContent = 'Publicar'; toast(errMsg(x), 'x'); } } }), { label: 'Nova publicação' });
 }
-function sportChipsAll(on) { return `<div class="hscroll" role="tablist" aria-label="Filtrar por esporte"><button class="chip ${on === 'all' ? 'on' : ''}" data-feedf="all">Tudo</button>${SPORT_IDS.map(id => `<button class="chip ${on === id ? 'on' : ''}" data-feedf="${id}">${icon(SPORTS[id].icon, 16)}${SPORTS[id].name}</button>`).join('')}</div>`; }
+function sportChipsAll(on) { return `<div class="hscroll" role="tablist" aria-label="Filtrar por esporte"><button class="chip ${on === 'all' ? 'on' : ''}" data-feedf="all">Tudo</button>${mySports().map(id => `<button class="chip ${on === id ? 'on' : ''}" data-feedf="${id}">${icon(SPORTS[id].icon, 16)}${SPORTS[id].name}</button>`).join('')}</div>`; }
 
 Screens.social = {
   render() {
+    if (socialFilter !== 'all' && !mySports().includes(socialFilter)) socialFilter = 'all';
     return `<div class="scroll" id="feed-scroll"><div class="pad page" style="padding-top:calc(var(--safe-top) + 10px)">
       <div class="between" data-e="0"><h1 class="display" style="font-size:30px">Comunidade</h1><div class="row" style="gap:8px"><button class="icon-btn glass" aria-label="Buscar pessoas" data-people>${icon('search', 20)}</button><button class="icon-btn" style="background:var(--accent);color:#fff" aria-label="Nova publicação" data-compose-any>${icon('plus', 20, 2)}</button></div></div>
       <div style="margin-top:16px" data-e="1">${seg([['all', 'Para você'], ['following', 'Seguindo']], socialScope, 'scope')}</div>
@@ -154,7 +155,7 @@ Screens.challenges = {
   },
   mount(el) {
     const load = async () => { const box = $('#ch-body', el); box.innerHTML = '<div class="card skeleton" style="height:170px"></div>';
-      try { let L = chTab === 'ativos' ? await API.myChallenges() : (await API.listChallenges()).filter(c => !API.joined.includes(c.id));
+      try { let L = chTab === 'ativos' ? await API.myChallenges() : (await API.listChallenges()).filter(c => !API.joined.includes(c.id) && mySports().includes(c.sport));
         L = L.sort((a, b) => (b.end - a.end));
         box.innerHTML = L.length ? `<div class="ch-grid">${L.map(c => challengeCard(c, 'full')).join('')}</div>` : emptyBox(chTab === 'ativos' ? 'Você ainda não participa de nenhum desafio.' : 'Nenhum desafio público aberto. Crie o primeiro!', `<button class="btn btn-white btn-sm" data-ch-new>Criar desafio</button>`);
         Motion.fillBars(box); } catch (x) { box.innerHTML = emptyBox(errMsg(x)); } };
@@ -171,7 +172,7 @@ function createChallengeSheet(sport) {
   const unit = () => CH_METRICS[d.sport].find(m => m[0] === d.metric)[2];
   Sheet.open(`<h3 class="h2">Criar desafio</h3><div style="margin-top:16px">
     <div class="field"><label for="cc-n">Nome</label><input class="input" id="cc-n" placeholder="Ex.: 100 km em dezembro" maxlength="60"></div>
-    <div class="field"><label>Esporte</label>${sportChips(d.sport, 'ccs', SPORT_IDS)}</div>
+    <div class="field"><label>Esporte</label>${sportChips(d.sport, 'ccs', mySports())}</div>
     <div class="field"><label>Métrica</label><div class="row cc-m" style="gap:8px;flex-wrap:wrap">${mopts()}</div></div>
     <div class="field"><label for="cc-t">Objetivo (<span class="cc-u">${unit()}</span>)</label><input class="input" id="cc-t" type="number" inputmode="decimal" min="1" value="30"></div>
     <div class="grid2"><div class="field"><label for="cc-a">Início</label><input class="input" type="date" id="cc-a" value="${iso(Date.now())}"></div><div class="field"><label for="cc-b">Término</label><input class="input" type="date" id="cc-b" value="${iso(Date.now() + 30 * DAY)}"></div></div>

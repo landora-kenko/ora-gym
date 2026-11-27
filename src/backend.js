@@ -180,9 +180,14 @@ const API = (() => {
     const id = await D.add('posts', doc); await D.set('users/' + uid(), { postsCount: INC(1) }); st.me.postsCount = (st.me.postsCount || 0) + 1; return { id, ...doc };
   }
   async function feed({ sport = 'all', scope = 'all', after = null } = {}) {
+    // A comunidade mostra só os esportes que a pessoa escolheu
+    const mine = (st.me && st.me.sports && st.me.sports.length ? st.me.sports : null);
+    const sp = sport !== 'all' ? [['sport', '==', sport]] : mine && mine.length < 7 ? [['sport', 'in', mine.slice(0, 10)]] : [];
     let rows;
-    if (scope === 'following') { const ids = [...st.following, uid()].slice(0, 30); rows = await D.query('posts', { where: [['authorId', 'in', ids], ['visibility', '==', 'public'], ...(sport !== 'all' ? [['sport', '==', sport]] : [])], order: ['ts', 'desc'], limit: 20, after }); }
-    else rows = await D.query('posts', { where: [['visibility', '==', 'public'], ...(sport !== 'all' ? [['sport', '==', sport]] : [])], order: ['ts', 'desc'], limit: 20, after });
+    if (scope === 'following') { const ids = [...st.following, uid()].slice(0, 30);
+      rows = await D.query('posts', { where: [['authorId', 'in', ids], ['visibility', '==', 'public'], ...(sport !== 'all' ? sp : [])], order: ['ts', 'desc'], limit: 30, after });
+      if (sport === 'all' && mine) rows = rows.filter(p => mine.includes(p.sport)); }
+    else rows = await D.query('posts', { where: [['visibility', '==', 'public'], ...sp], order: ['ts', 'desc'], limit: 20, after });
     await markLiked(rows); return rows;
   }
   async function postsBy(id) { const where = [['authorId', '==', id]]; if (id !== uid()) where.push(['visibility', '==', 'public']); const rows = await D.query('posts', { where, order: ['ts', 'desc'], limit: 30 }); await markLiked(rows); return rows; }
