@@ -186,7 +186,15 @@ Screens.runLive = {
         if (S.mode === 'time' && !S.hit && S.moving >= S.target * 60) { S.hit = true; beep(990, .3, 3); Voice.say(`Meta de ${S.target} minutos concluída!`); toast('Meta de tempo concluída!', 'trophy'); }
         if (runPrefs().auto && S.lastMove && n - S.lastMove > 10000) { S.state = 'auto'; $t('#rl-ap').hidden = false; Voice.say('Pausa automática'); }
         upd(); persist(); } }, 500);
-    el._cleanup = () => { clearInterval(clock); if (watch != null) navigator.geolocation.clearWatch(watch); try { lock && lock.release(); } catch (e) {} try { map && map.remove(); } catch (e) {} };
+    // Ao voltar de tela bloqueada/app em segundo plano: reativa a tela ligada, não marca pausa automática por engano
+    // e busca a posição atual para ligar o trecho perdido (o navegador não roda GPS com a tela bloqueada).
+    const onVis = async () => { if (document.visibilityState !== 'visible' || !el.isConnected) return; if (S.state === 'run' || S.state === 'auto' || S.state === 'pause') { try { lock = await keepAwake(); } catch (e) {} }
+      if (S.state === 'run' || S.state === 'auto') { const gap = (Date.now() - (S.lastT || Date.now())) / 1000; S.lastMove = Date.now(); if (S.state === 'auto') { S.state = 'run'; S.lastT = Date.now(); $t('#rl-ap').hidden = true; }
+        if (gap > 20) toast('O GPS fica pausado com a tela bloqueada — o trecho foi ligado em linha reta', 'pin');
+        try { navigator.geolocation.getCurrentPosition(onPos, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }); } catch (e) {} } persist(true); };
+    document.addEventListener('visibilitychange', onVis);
+    const onHide = () => { if (document.visibilityState === 'hidden') persist(true); }; document.addEventListener('visibilitychange', onHide); window.addEventListener('pagehide', onHide);
+    el._cleanup = () => { clearInterval(clock); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide); if (watch != null) navigator.geolocation.clearWatch(watch); try { lock && lock.release(); } catch (e) {} try { map && map.remove(); } catch (e) {} };
     const ctrl = $t('#rl-ctrl');
     const waitUI = () => { ctrl.innerHTML = `${resume ? `<div class="rl-resume">${icon('refresh', 15)}Corrida de ${km2(saved.dist)} km em andamento <button class="link" id="rl-disc">Descartar</button></div>` : `<div class="rl-modechip" id="rl-mode">${icon('flag', 14)}${S.mode === 'free' ? 'Corrida livre' : S.mode === 'dist' ? `Meta ${fmt(S.target, S.target % 1 ? 1 : 0)} km` : S.mode === 'time' ? `Meta ${S.target} min` : intervalLabel({ reps: S.plan.length / 2, fast: S.plan[0].s / 60, slow: S.plan[1].s / 60 })}</div>`}
       <button class="rl-go" id="rl-start" disabled><span>${icon('play', 30)}</span><b>Aguardando GPS</b></button><p class="rl-tip">Mantenha a tela ligada — no navegador o GPS para quando o celular bloqueia.</p>`;
